@@ -7,29 +7,36 @@ import android.util.Log
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,6 +44,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SmallTopAppBar
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -177,6 +185,7 @@ fun BookingScreen(
         }
     }
 
+
     Scaffold(
         topBar = {
             SmallTopAppBar(
@@ -214,6 +223,16 @@ fun BookingScreen(
                     }
                 }
             )
+        },
+        floatingActionButton = {
+            if (pickupLocation != null && dropOffLocation != null) {
+                FloatingActionButton(
+                    onClick = { /* Handle booking */ },
+                    containerColor = MaterialTheme.colorScheme.primary
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = "Book Now")
+                }
+            }
         }
     ) { paddingValues ->
         if (permissionState.allPermissionsGranted) {
@@ -350,7 +369,8 @@ fun BookingScreen(
                                 vehicle = "Small Truck",
                                 icon = R.drawable.pickup_truck,
                                 time = travelTime ?: "Calculating...",
-                                price = "${calculateFare(pickupLocation!!, dropOffLocation!!)}",
+                                price = "${calculateFare(pickupLocation!!, dropOffLocation!!, VehicleType.SMALL_TRUCK)}",
+
                                 isSelected = true
                             )
 
@@ -368,8 +388,9 @@ fun BookingScreen(
                                 price = "${
                                     (calculateFare(
                                         pickupLocation!!,
-                                        dropOffLocation!!
-                                    ) * 1.5)
+                                        dropOffLocation!!,
+                                        VehicleType.LARGE_TRUCK
+                                    ))
                                 }",
                                 isSelected = false
                             )
@@ -407,6 +428,7 @@ fun BookingScreen(
                     }
                 }
             }
+
         }
     }
 }
@@ -424,36 +446,60 @@ private fun VehicleOption(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { /* Handle selection */ }
-            .padding(vertical = 8.dp),  // Reduced padding
+            // Add border and background when selected
+            .border(
+                width = if (isSelected) 2.dp else 0.dp,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .background(
+                color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(12.dp),  // Increased padding for better visual
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Image(
-                painter = painterResource(id = icon),
-                contentDescription = null,
+            Box(
                 modifier = Modifier
-                    .size(32.dp)  // Reduced size
-                    .padding(end = 8.dp)  // Reduced padding
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {  // Reduced spacing
+                    .size(40.dp)
+                    .background(
+                        color = if (isSelected)
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                        else MaterialTheme.colorScheme.surfaceVariant,
+                        shape = CircleShape
+                    )
+                    .padding(8.dp)
+            ) {
+                Image(
+                    painter = painterResource(id = icon),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = vehicle,
-                        style = MaterialTheme.typography.bodyLarge,  // Smaller text
+                        style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold
                     )
                     if (isSelected) {
                         Surface(
-                            color = Color(0xFF4B6EFF),  // Blue color from reference
+                            color = MaterialTheme.colorScheme.primary,
                             shape = RoundedCornerShape(12.dp)
                         ) {
                             Text(
                                 "FASTEST",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = Color.White
                             )
@@ -466,16 +512,32 @@ private fun VehicleOption(
                             (time.split(" ")[0].toIntOrNull() ?: 0).toLong()
                         ).format(DateTimeFormatter.ofPattern("hh:mm a"))
                     }",
-                    style = MaterialTheme.typography.bodySmall,  // Smaller text
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
-        Text(
-            text = "₹${price.toDouble().toInt()}",
-            style = MaterialTheme.typography.titleMedium,  // Smaller text
-            fontWeight = FontWeight.Bold
-        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "₹${price.toDouble().toInt()}",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = if (isSelected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurface
+            )
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
     }
 }
 
@@ -526,10 +588,32 @@ fun haversineDistance(start: LatLng, end: LatLng): Double {
     return earthRadius * c
 }
 
-fun calculateFare(start: LatLng, end: LatLng): Double {
-    val distance = haversineDistance(start, end)
-    val baseFare = 50.0
-    val perKmRate = 15.0
-    return baseFare + (distance * perKmRate)
+enum class VehicleType {
+    SMALL_TRUCK,
+    LARGE_TRUCK
 }
 
+private fun calculateFare(
+    start: LatLng,
+    end: LatLng,
+    vehicleType: VehicleType = VehicleType.SMALL_TRUCK,
+    timeOfDay: LocalTime = LocalTime.now(),
+    baseFare: Double = 50.0
+): Double {
+    val distance = haversineDistance(start, end)
+    val perKmRate = when (vehicleType) {
+        VehicleType.SMALL_TRUCK -> 15.0
+        VehicleType.LARGE_TRUCK -> 25.0
+    }
+
+    // Peak hour multiplier
+    val peakMultiplier = if (timeOfDay.isAfter(LocalTime.of(17, 0)) && timeOfDay.isBefore(LocalTime.of(20, 0))) {
+        1.2 // 20% increase during peak hours
+    } else {
+        1.0
+    }
+
+    // Total fare calculation
+    val fare = baseFare + (distance * perKmRate * peakMultiplier)
+    return fare
+}

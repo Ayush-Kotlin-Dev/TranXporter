@@ -1,4 +1,6 @@
 package com.ayush.tranxporter.user
+import android.content.Context
+import android.location.Geocoder
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,8 +21,12 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.tasks.await
 import android.util.Log
+import androidx.compose.ui.text.style.TextOverflow
 import com.ayush.tranxporter.PlacePrediction
 import com.ayush.tranxporter.searchPlaces
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,8 +36,9 @@ fun LocationSelectionScreen(navController: NavHostController) {
     var predictions by remember { mutableStateOf<List<PlacePrediction>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var currentAddress by remember { mutableStateOf<String>("Fetching location...") }
 
-    // Get current location immediately
+    // Get current location and address immediately
     LaunchedEffect(Unit) {
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         try {
@@ -39,11 +46,15 @@ fun LocationSelectionScreen(navController: NavHostController) {
             if (permissionCheck == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 val location = fusedLocationClient.lastLocation.await()
                 location?.let {
-                    currentLocation = LatLng(it.latitude, it.longitude)
+                    val latLng = LatLng(it.latitude, it.longitude)
+                    currentLocation = latLng
+                    // Get address
+                    currentAddress = getAddressFromLocation(context, latLng)
                 }
             }
         } catch (e: Exception) {
             Log.e("Location", "Error getting location", e)
+            currentAddress = "Unable to get location"
         }
     }
     val scope = rememberCoroutineScope()
@@ -83,7 +94,7 @@ fun LocationSelectionScreen(navController: NavHostController) {
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    // Show current location as pickup
+                    // Show current location as pickup with address
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
@@ -94,10 +105,20 @@ fun LocationSelectionScreen(navController: NavHostController) {
                             tint = Color.Green
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            "Current Location (Pickup)",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Column {
+                            Text(
+                                "Current Location (Pickup)",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                currentAddress,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
@@ -189,6 +210,29 @@ private fun LocationSuggestionItem(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+// Add this function
+private suspend fun getAddressFromLocation(context: Context, latLng: LatLng): String {
+    return withContext(Dispatchers.IO) {
+        try {
+            val geocoder = Geocoder(context, Locale.getDefault())
+            val addresses = geocoder.getFromLocation(latLng.latitude, latLng.longitude, 1)
+            if (!addresses.isNullOrEmpty()) {
+                addresses[0]?.let { address ->
+                    buildString {
+                        // Add the most detailed part of the address first
+                        address.getAddressLine(0)?.let { append(it) }
+                    }
+                } ?: "Current Location"
+            } else {
+                "Current Location"
+            }
+        } catch (e: Exception) {
+            Log.e("Geocoder", "Error getting address", e)
+            "Current Location"
         }
     }
 }
