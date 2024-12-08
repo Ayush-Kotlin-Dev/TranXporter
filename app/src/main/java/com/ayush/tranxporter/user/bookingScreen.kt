@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.location.Location
 import android.util.Log
+import android.widget.Toast
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -37,6 +38,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -70,6 +72,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.Dot
 import com.google.android.gms.maps.model.Gap
 import com.google.android.gms.maps.model.LatLng
@@ -82,6 +85,7 @@ import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.atan2
@@ -120,6 +124,8 @@ fun BookingScreen(
     }
     var travelTime by remember { mutableStateOf<String?>(null) }
     var routePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
+
+    val scope = rememberCoroutineScope()
 // Initialize route if both locations are provided
     LaunchedEffect(Unit) {
         if (initialPickup != null && initialDropoff != null) {
@@ -224,16 +230,16 @@ fun BookingScreen(
                 }
             )
         },
-        floatingActionButton = {
-            if (pickupLocation != null && dropOffLocation != null) {
-                FloatingActionButton(
-                    onClick = { /* Handle booking */ },
-                    containerColor = MaterialTheme.colorScheme.primary
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = "Book Now")
-                }
-            }
-        }
+//        floatingActionButton = {
+//            if (pickupLocation != null && dropOffLocation != null) {
+//                FloatingActionButton(
+//                    onClick = { /* Handle booking */ },
+//                    containerColor = MaterialTheme.colorScheme.primary
+//                ) {
+//                    Icon(Icons.Default.Check, contentDescription = "Book Now")
+//                }
+//            }
+//        }
     ) { paddingValues ->
         if (permissionState.allPermissionsGranted) {
             Box(
@@ -283,6 +289,57 @@ fun BookingScreen(
                                 Dot(),
                                 Gap(10f)
                             )
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(end = 16.dp, bottom = 96.dp),  // Adjust bottom padding based on your UI
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    FloatingActionButton(
+                        onClick = {
+                            // Get current location and animate camera
+                            scope.launch {
+                                try {
+                                    val fusedLocationClient =
+                                        LocationServices.getFusedLocationProviderClient(context)
+                                    val location = fusedLocationClient.lastLocation.await()
+                                    location?.let {
+                                        val cameraPosition = CameraPosition.Builder()
+                                            .target(LatLng(it.latitude, it.longitude))
+                                            .zoom(15f)
+                                            .build()
+                                        cameraPositionState.animate(
+                                            update = CameraUpdateFactory.newCameraPosition(
+                                                cameraPosition
+                                            ),
+                                            durationMs = 500
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    Log.e("Location", "Error getting location", e)
+                                    // Optionally show error message to user
+                                    Toast.makeText(
+                                        context,
+                                        "Unable to get current location",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        },
+                        modifier = Modifier.size(40.dp),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        elevation = FloatingActionButtonDefaults.elevation(
+                            defaultElevation = 6.dp
+                        )
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.location),
+                            contentDescription = "My Location",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }

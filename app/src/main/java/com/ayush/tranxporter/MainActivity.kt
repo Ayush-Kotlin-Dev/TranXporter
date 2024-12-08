@@ -81,6 +81,9 @@ fun MainScreen() {
         composable("locationSelection") {
             LocationSelectionScreen(navController)
         }
+        composable("driver") {
+            DriverScreen()
+        }
         composable(
             "booking?pickup_lat={pickup_lat}&pickup_lng={pickup_lng}&drop_lat={drop_lat}&drop_lng={drop_lng}",
             arguments = listOf(

@@ -21,8 +21,13 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.tasks.await
 import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import com.ayush.tranxporter.PlacePrediction
+import com.ayush.tranxporter.R
 import com.ayush.tranxporter.searchPlaces
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -72,48 +77,83 @@ fun LocationSelectionScreen(navController: NavHostController) {
     Scaffold(
         topBar = {
             SmallTopAppBar(
-                title = { Text("Select Drop Location") },
+                title = {
+                    Text(
+                        "Select Location",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.Default.ArrowBack, "Back")
+                    IconButton(
+                        onClick = { navController.navigateUp() }
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            "Back",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.smallTopAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
         }
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
         ) {
-            // Current Location Card
-            Card(
+            // Location Selection Card
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(12.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 2.dp
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    // Show current location as pickup with address
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
+                    // Pickup Location Row
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.Default.LocationOn,
-                            contentDescription = null,
-                            tint = Color.Green
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(
+                                    color = Color(0xFF4CAF50).copy(alpha = 0.1f),
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = Color(0xFF4CAF50),
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                "Current Location (Pickup)",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.primary
+                                "Current Location",
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             )
                             Text(
                                 currentAddress,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis
@@ -121,51 +161,79 @@ fun LocationSelectionScreen(navController: NavHostController) {
                         }
                     }
 
-                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                    Divider(
+                        modifier = Modifier
+                            .padding(vertical = 12.dp)
+                            .fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
 
-                    // Dropoff location search
+                    // Search TextField
                     TextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Enter drop location") },
-                        colors = TextFieldDefaults.textFieldColors(
-                            containerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.LocationOn,
-                                contentDescription = null,
-                                tint = Color.Red
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        placeholder = {
+                            Text(
+                                "Where to?",
+                                style = MaterialTheme.typography.bodyMedium
                             )
-                        }
+                        },
+                        leadingIcon = {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .padding(8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.LocationOn,
+                                    contentDescription = null,
+                                    tint = Color(0xFFE53935),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        },
+                        colors = TextFieldDefaults.textFieldColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            cursorColor = MaterialTheme.colorScheme.primary
+                        ),
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        singleLine = true
                     )
                 }
             }
 
-            // Show predictions
+            // Search Progress Indicator
             if (isSearching) {
-                CircularProgressIndicator(
+                Box(
                     modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(16.dp)
-                )
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 2.dp
+                    )
+                }
             }
 
-            LazyColumn {
-                // Update LocationSelectionScreen navigation
+            // Predictions List
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
                 items(predictions) { prediction ->
                     LocationSuggestionItem(
                         prediction = prediction,
                         onItemClick = {
-                            // Navigate to booking with both locations
                             currentLocation?.let { pickup ->
-                                Log.d("Navigation", "Navigating with coordinates: " +
-                                        "pickup: (${pickup.latitude}, ${pickup.longitude}), " +
-                                        "drop: (${prediction.latitude}, ${prediction.longitude})")
-
                                 navController.navigate(
                                     "booking?" +
                                             "pickup_lat=${pickup.latitude}&" +
@@ -187,33 +255,53 @@ private fun LocationSuggestionItem(
     prediction: PlacePrediction,
     onItemClick: () -> Unit
 ) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onItemClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clickable(onClick = onItemClick),
+        color = MaterialTheme.colorScheme.surface
     ) {
-        Icon(
-            Icons.Default.Edit,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column {
-            Text(
-                text = prediction.mainText,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = prediction.secondaryText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.location_pin),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = prediction.mainText,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = prediction.secondaryText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
-
 // Add this function
 private suspend fun getAddressFromLocation(context: Context, latLng: LatLng): String {
     return withContext(Dispatchers.IO) {
