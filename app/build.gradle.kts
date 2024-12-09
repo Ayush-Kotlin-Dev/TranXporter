@@ -4,9 +4,13 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
+    alias(libs.plugins.kotlin.serialization)
+    kotlin("kapt")
     id("com.google.gms.google-services")
 }
-val secretsFile = rootProject.file("secret.properties")
+val secretsFile = rootProject.file("secret.propert" +
+        "ies")
 val secrets = Properties().apply {
     if (secretsFile.exists()) {
         load(secretsFile.inputStream())
@@ -53,46 +57,60 @@ android {
 
 dependencies {
     implementation(libs.play.services.location)
-    val firebaseAuthV = "23.0.0"
-    val firebaseGmsPlayServices = "21.2.0"
-
-//Firebase
-    val firebaseAuth = "com.google.firebase:firebase-auth-ktx:${firebaseAuthV}"
-    val gmsPlayServices =
-        "com.google.android.gms:play-services-auth:${firebaseGmsPlayServices}"
-    val firebaseAuthKtx = "com.google.firebase:firebase-auth-ktx:23.0.0"
-    val firebaseBom = "com.google.firebase:firebase-bom:33.4.0"
+    implementation(libs.bundles.maps)
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.ui)
-    implementation(libs.androidx.ui.graphics)
-    implementation(libs.androidx.ui.tooling.preview)
-    implementation(libs.androidx.material3)
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.ui.test.junit4)
-    debugImplementation(libs.androidx.ui.tooling)
-    debugImplementation(libs.androidx.ui.test.manifest)
+    implementation(libs.bundles.compose)
 
-    implementation("com.google.android.gms:play-services-maps:19.0.0")
-    implementation("com.google.maps.android:maps-compose:4.3.0")
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.bundles.firebase)
 
-    implementation("com.google.accompanist:accompanist-permissions:0.32.0")
-    
-    implementation(firebaseAuth)
-    implementation(gmsPlayServices)
-    implementation(firebaseAuthKtx)
-    implementation(firebaseBom)
-    implementation("androidx.navigation:navigation-compose:2.7.0")
-    implementation("org.slf4j:slf4j-simple:1.7.32")
-    implementation("io.grpc:grpc-okhttp:1.53.0")
-    implementation("com.squareup.okhttp3:okhttp:4.11.0")
-    implementation("com.google.android.libraries.places:places:4.1.0")
+    // Navigation & Permissions
+    implementation(libs.androidx.navigation.compose)
+    implementation(libs.accompanist.permissions)
 
+    // Network & Data
+    implementation(libs.slf4j.simple)
+    implementation(libs.grpc.okhttp)
+    implementation(libs.okhttp)
+    implementation(libs.kotlinx.coroutines.core)
 
+    // Hilt
+    implementation(libs.bundles.hilt)
+    kapt(libs.hilt.compiler)
+
+//    // Room
+//    implementation(libs.bundles.room)
+//    kapt(libs.room.compiler)
+
+    // Voyager
+    implementation(libs.bundles.voyager)
+
+//    // Ktor
+//    implementation(libs.bundles.ktor)
+
+    // Serialization
+    implementation(libs.bundles.serialization)
+
+    // DataStore
+    implementation(libs.datastore.preferences)
+
+    // Coil
+    implementation(libs.coil.compose)
+
+    // Lottie
+    implementation(libs.lottie.compose)
+
+//    Testing
+//    testImplementation(libs.junit)
+//    androidTestImplementation(libs.androidx.junit)
+//    androidTestImplementation(libs.androidx.espresso.core)
+//    androidTestImplementation(platform(libs.androidx.compose.bom))
+//    androidTestImplementation(libs.androidx.ui.test.junit4)
+//    debugImplementation(libs.androidx.ui.tooling)
+//    debugImplementation(libs.androidx.ui.test.manifest)
 }
