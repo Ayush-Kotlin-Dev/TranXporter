@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
-        Places.initialize(applicationContext, "AIzaSyBRz8M5idMeC-7mYe5y2BOao8PuV84ZGeM")
+        Places.initialize(applicationContext, BuildConfig.MAPS_API_KEY)
 
         setContent {
             TranXporterTheme {

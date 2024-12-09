@@ -1,6 +1,7 @@
 package com.ayush.tranxporter.utils
 
 import android.util.Log
+import com.ayush.tranxporter.BuildConfig
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -21,7 +22,7 @@ suspend fun getTravelTime(start: LatLng, end: LatLng): String {
                     "origin=${start.latitude},${start.longitude}" +
                     "&destination=${end.latitude},${end.longitude}" +
                     "&mode=driving" +
-                    "&key=AIzaSyBRz8M5idMeC-7mYe5y2BOao8PuV84ZGeM"  // Use BuildConfig for API key
+                    "&key=${BuildConfig.MAPS_API_KEY}"
 
             val request = Request.Builder()
                 .url(url)

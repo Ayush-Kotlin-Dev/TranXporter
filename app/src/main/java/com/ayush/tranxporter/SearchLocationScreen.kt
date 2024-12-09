@@ -300,12 +300,7 @@ private fun PredictionItem(
     }
 }
 
-
-// Data classes remain the same as in the original implementation
-data class SavedLocation(
-    val title: String,
-    val subtitle: String
-)
+// The PlacePrediction data class remains the same
 
 data class PlacePrediction(
     val placeId: String,
@@ -314,7 +309,15 @@ data class PlacePrediction(
     val secondaryText: String,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val relevanceScore: Double = 0.0
+    val relevanceScore: Double = 0.0,
+    val distanceInKm: Double = 0.0,
+    val types: List<String> = emptyList(),
+    val structuredFormatting: Map<String, String> = emptyMap()
+)
+
+data class SavedLocation(
+    val title: String,
+    val subtitle: String
 )
 
 data class PlaceDetails(
@@ -323,13 +326,13 @@ data class PlaceDetails(
     val address: String
 )
 
+// These functions remain the same as in the original implementation
 suspend fun searchPlaces(
     query: String,
     context: Context,
     scope: CoroutineScope,
     onResult: (List<PlacePrediction>) -> Unit
 ) {
-    // Early return for very short queries
     if (query.length < 2) {
         onResult(emptyList())
         return
@@ -337,53 +340,52 @@ suspend fun searchPlaces(
 
     withContext(Dispatchers.IO) {
         try {
-            // Optimize location retrieval - use a faster, more concise approach
             val currentLocation = getCurrentLocation(context)
-
             val placesClient = Places.createClient(context)
             val token = AutocompleteSessionToken.newInstance()
 
-            // Build request with optimized parameters
             val request = FindAutocompletePredictionsRequest.builder()
                 .setQuery(query)
-                .setCountries("IN")
-                .setTypeFilter(TypeFilter.ADDRESS)
+                .setCountries("IN") // India
+                .setTypeFilter(TypeFilter.ESTABLISHMENT)
                 .setSessionToken(token)
                 .apply {
                     currentLocation?.let { location ->
-                        // Use a more conservative location bias
-                        setLocationBias(
-                            RectangularBounds.newInstance(
-                                LatLng(
-                                    location.latitude - 0.2,
-                                    location.longitude - 0.2
-                                ),
-                                LatLng(
-                                    location.latitude + 0.2,
-                                    location.longitude + 0.2
-                                )
-                            )
-                        )
+                        // Improved location bias with dynamic radius based on urban/rural area
+                        val bounds = calculateSearchBounds(location, isDenseUrbanArea(context))
+                        setLocationBias(bounds)
                     }
                 }
                 .build()
 
-            // Use async for concurrent place details fetching
             val predictions = placesClient.findAutocompletePredictions(request)
                 .await()
                 .autocompletePredictions
 
-            // Parallel place details retrieval with limited concurrency
+            // Then update the relevance calculation in the searchPlaces function
             val placeResults = predictions.take(5).map { prediction ->
                 scope.async {
                     try {
                         val placeDetails = getPlaceDetails(prediction.placeId, context)
+                        val distance = currentLocation?.let { location ->
+                            calculateHaversineDistance(
+                                location.latitude,
+                                location.longitude,
+                                placeDetails?.latitude ?: 0.0,
+                                placeDetails?.longitude ?: 0.0
+                            )
+                        } ?: 0.0
 
-                        // Calculate relevance score
+                        // Convert Place.Type to String list
+                        val placeTypeStrings = prediction.placeTypes?.map { it.name } ?: emptyList()
+
+                        // Enhanced relevance scoring
                         val relevanceScore = calculateRelevanceScore(
-                            prediction,
-                            query,
-                            currentLocation
+                            prediction = prediction,
+                            query = query,
+                            currentLocation = currentLocation,
+                            distance = distance,
+                            placeTypes = placeTypeStrings
                         )
 
                         PlacePrediction(
@@ -393,7 +395,13 @@ suspend fun searchPlaces(
                             secondaryText = prediction.getSecondaryText(null).toString(),
                             latitude = placeDetails?.latitude ?: 0.0,
                             longitude = placeDetails?.longitude ?: 0.0,
-                            relevanceScore = relevanceScore
+                            relevanceScore = relevanceScore,
+                            distanceInKm = distance,
+                            types = placeTypeStrings,
+                            structuredFormatting = mapOf(
+                                "main_text" to prediction.getPrimaryText(null).toString(),
+                                "secondary_text" to prediction.getSecondaryText(null).toString()
+                            )
                         )
                     } catch (e: Exception) {
                         null
@@ -401,10 +409,13 @@ suspend fun searchPlaces(
                 }
             }.mapNotNull { it.await() }
 
-            // Sort results by relevance score
             val sortedResults = placeResults
-                .sortedByDescending { it.relevanceScore }
-                .take(5)  // Limit to top 5 results
+                .sortedWith(
+                    compareByDescending<PlacePrediction> { it.relevanceScore }
+                        .thenBy { it.distanceInKm }
+                        .thenBy { it.mainText.length } // Prefer shorter, more precise names
+                )
+                .take(5)
 
             onResult(sortedResults)
         } catch (e: Exception) {
@@ -414,6 +425,86 @@ suspend fun searchPlaces(
     }
 }
 
+// Helper function to determine if the area is densely urban
+private fun isDenseUrbanArea(context: Context): Boolean {
+    // You can implement this based on population density data or
+    // number of places in the area. For now, using a simple implementation:
+    return true // Assuming urban area for better results
+}
+
+// Calculate dynamic search bounds based on area type
+private fun calculateSearchBounds(
+    center: LatLng,
+    isDenseUrban: Boolean
+): RectangularBounds {
+    val radius = if (isDenseUrban) 0.1 else 0.3 // Smaller radius for urban areas
+    return RectangularBounds.newInstance(
+        LatLng(
+            center.latitude - radius,
+            center.longitude - radius
+        ),
+        LatLng(
+            center.latitude + radius,
+            center.longitude + radius
+        )
+    )
+}
+
+// Improved relevance scoring
+private fun calculateRelevanceScore(
+    prediction: AutocompletePrediction,
+    query: String,
+    currentLocation: LatLng?,
+    distance: Double,
+    placeTypes: List<String>
+): Double {
+    var score = 0.0
+
+    // Text matching score (0-40 points)
+    val queryLower = query.lowercase()
+    val mainTextLower = prediction.getPrimaryText(null).toString().lowercase()
+    val secondaryTextLower = prediction.getSecondaryText(null).toString().lowercase()
+
+    when {
+        mainTextLower == queryLower -> score += 40.0 // Exact match
+        mainTextLower.startsWith(queryLower) -> score += 35.0 // Starts with query
+        mainTextLower.contains(queryLower) -> score += 30.0 // Contains query
+        secondaryTextLower.contains(queryLower) -> score += 25.0 // Match in secondary text
+    }
+
+    // Distance score (0-30 points)
+    score += when {
+        distance < 1.0 -> 30.0
+        distance < 2.0 -> 25.0
+        distance < 5.0 -> 20.0
+        distance < 10.0 -> 15.0
+        distance < 20.0 -> 10.0
+        else -> 5.0
+    }
+
+    // Place type relevance (0-20 points)
+    val importantTypes = mapOf(
+        "point_of_interest" to 20.0,
+        "establishment" to 18.0,
+        "route" to 15.0,
+        "street_address" to 15.0,
+        "sublocality" to 12.0,
+        "neighborhood" to 10.0
+    )
+
+    placeTypes.forEach { type ->
+        importantTypes[type]?.let { typeScore ->
+            score += typeScore
+        }
+    }
+
+    // Popularity indicators (0-10 points)
+    if (prediction.getDistanceMeters() != null) {
+        score += 10.0 // Place has distance information
+    }
+
+    return score
+}
 // Optimized location retrieval
 private suspend fun getCurrentLocation(context: Context): LatLng? {
     return try {
@@ -437,63 +528,24 @@ private suspend fun getCurrentLocation(context: Context): LatLng? {
     }
 }
 
-// More sophisticated relevance scoring
-private fun calculateRelevanceScore(
-    prediction: AutocompletePrediction,
-    query: String,
-    currentLocation: LatLng?
+private fun calculateHaversineDistance(
+    lat1: Double,
+    lon1: Double,
+    lat2: Double,
+    lon2: Double
 ): Double {
-    var score = 0.0
+    val R = 6371.0 // Earth's radius in kilometers
 
-    // Text relevance
-    if (prediction.getPrimaryText(null).toString().contains(query, ignoreCase = true)) {
-        score += 10.0  // Strong match in primary text
-    }
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
 
-    // Location relevance
-    currentLocation?.let { userLocation ->
-        if (prediction.placeId.isNotEmpty()) {
-            // Penalty for predictions without place details
-            score += 5.0
-        }
+    val a = sin(dLat / 2).pow(2) +
+            cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) *
+            sin(dLon / 2).pow(2)
 
-        // Distance impact (closer locations get higher score)
-        score += calculateDistanceScore(userLocation, prediction)
-    }
+    val c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
-    // Additional relevance boosters
-    val boostKeywords = listOf(
-        "hospital", "station", "airport", "market",
-        "mall", "school", "college", "landmark",
-        "monument", "park", "plaza", "business"
-    )
-
-    boostKeywords.forEach { keyword ->
-        if (prediction.getPrimaryText(null).toString().contains(keyword, ignoreCase = true)) {
-            score += 2.0
-        }
-    }
-
-    return score
-}
-
-// Distance-based scoring
-private fun calculateDistanceScore(
-    userLocation: LatLng,
-    prediction: AutocompletePrediction
-): Double {
-    // Placeholder for distance calculation - implement actual distance retrieval
-    return try {
-        val distance = 10.0 // Placeholder - replace with actual distance calculation
-        when {
-            distance < 1.0 -> 5.0   // Very close
-            distance < 5.0 -> 3.0   // Nearby
-            distance < 10.0 -> 1.0  // Within reasonable range
-            else -> 0.0              // Far
-        }
-    } catch (e: Exception) {
-        0.0
-    }
+    return R * c // Distance in kilometers
 }
 
 // Existing place details retrieval function remains mostly the same
