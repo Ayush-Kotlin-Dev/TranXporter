@@ -105,6 +105,9 @@ dependencies {
     // Lottie
     implementation(libs.lottie.compose)
 
+    // Accompanist
+    implementation(libs.accompanist.pager)
+    implementation(libs.accompanist.pager.indicators)
 //    Testing
 //    testImplementation(libs.junit)
 //    androidTestImplementation(libs.androidx.junit)

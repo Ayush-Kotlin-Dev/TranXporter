@@ -65,7 +65,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.ayush.tranxporter.R
-import com.ayush.tranxporter.ui.theme.BlueLight
 import com.ayush.tranxporter.utils.calculateFare
 import com.ayush.tranxporter.utils.getRoutePoints
 import com.ayush.tranxporter.utils.getTravelTime
@@ -472,7 +471,7 @@ fun BookingScreen(
                                     .fillMaxWidth()
                                     .height(48.dp),  // Slightly reduced height
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = BlueLight
+                                    containerColor = MaterialTheme.colorScheme.primary
                                 ),
                                 shape = RoundedCornerShape(24.dp)
                             ) {

@@ -25,12 +25,13 @@ import com.ayush.tranxporter.ui.theme.TranXporterTheme
 import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.auth
-
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.ayush.tranxporter.auth.SignInScreen
+import cafe.adriel.voyager.navigator.Navigator
+import com.ayush.tranxporter.auth.presentation.login.AuthScreen
+import com.ayush.tranxporter.core.presentation.onboard.OnboardingScreen
 import com.ayush.tranxporter.driver.DriverScreen
 import com.ayush.tranxporter.user.BookingScreen
 import com.ayush.tranxporter.user.LocationSelectionScreen
@@ -43,10 +44,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         FirebaseApp.initializeApp(this)
         Places.initialize(applicationContext, BuildConfig.MAPS_API_KEY)
-
+        val context = this
         setContent {
             TranXporterTheme {
-                MainScreen()
+                Navigator(screen = OnboardingScreen(onFinishOnboarding = {
+                    setContent {
+                        Navigator(screen = AuthScreen(onAuthenticated = {
+                            setContent {
+                                MainScreen()
+                            }
+                        }))
+                    }
+                }))
             }
         }
     }
@@ -62,13 +71,7 @@ fun MainScreen() {
         navController = navController,
         startDestination = if (currentUser != null) "home" else "auth"
     ) {
-        composable("auth") {
-            SignInScreen(onSignInSuccess = {
-                navController.navigate("home") {
-                    popUpTo("auth") { inclusive = true }
-                }
-            })
-        }
+
         composable("home") {
             HomeScreen(navController)
         }

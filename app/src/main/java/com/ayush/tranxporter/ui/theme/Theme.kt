@@ -5,24 +5,50 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
 private val LightColorScheme = lightColorScheme(
-    primary = BluePrimary,
+    // Primary
+    primary = PrimaryBlue,
     onPrimary = Color.White,
-    primaryContainer = BlueLight,
-    onPrimaryContainer = Color.White,
-    secondary = AmberPrimary,
-    onSecondary = Color.Black,
-    secondaryContainer = AmberLight,
-    onSecondaryContainer = Color.Black,
-    background = GreyLight,
-    onBackground = Color.Black,
-    surface = Color.White,
-    onSurface = Color.Black,
-    error = RedError,
-    onError = Color.White
+    primaryContainer = PrimaryBlueLight,
+    onPrimaryContainer = TextPrimary,
+
+    // Secondary
+    secondary = SecondaryBlue,
+    onSecondary = Color.White,
+    secondaryContainer = SecondaryBlueLight,
+    onSecondaryContainer = TextPrimary,
+
+    // Tertiary
+    tertiary = WarningAmber,
+    onTertiary = Color.White,
+    tertiaryContainer = SuccessGreen,
+    onTertiaryContainer = Color.White,
+
+    // Background
+    background = BackgroundWhite,
+    onBackground = TextPrimary,
+
+    // Surface
+    surface = SurfaceLight,
+    onSurface = TextPrimary,
+    surfaceVariant = GreyBackground,
+    onSurfaceVariant = TextSecondary,
+
+    // Error
+    error = ErrorRed,
+    onError = Color.White,
+    errorContainer = Color(0xFFFFEBEE),
+    onErrorContainer = ErrorRed,
+
+    // Additional colors
+    outline = TextDisabled,
+    outlineVariant = TextDisabled.copy(alpha = 0.12f),
+    scrim = TextPrimary.copy(alpha = 0.32f)
 )
 
 @Composable
-fun TranXporterTheme(content: @Composable () -> Unit) {
+fun TranXporterTheme(
+    content: @Composable () -> Unit
+) {
     MaterialTheme(
         colorScheme = LightColorScheme,
         typography = Typography,

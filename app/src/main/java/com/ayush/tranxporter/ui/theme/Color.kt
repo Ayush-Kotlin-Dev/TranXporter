@@ -2,19 +2,27 @@ package com.ayush.tranxporter.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary Brand Colors
-val BluePrimary = Color(0xFF0D47A1)
-val BlueLight = Color(0xFF5472D3)
-val BlueDark = Color(0xFF002171)
+// Primary Blues
+val PrimaryBlue = Color(0xFF1976D2)      // Main brand color
+val PrimaryBlueLight = Color(0xFF63A4FF)  // Lighter variations for containers
+val PrimaryBlueDark = Color(0xFF004BA0)   // Darker variations for emphasis
 
 // Secondary Colors
-val AmberPrimary = Color(0xFFFFA000)
-val AmberLight = Color(0xFFFFD149)
-val AmberDark = Color(0xFFC67100)
+val SecondaryBlue = Color(0xFF2196F3)     // For secondary elements
+val SecondaryBlueLight = Color(0xFF6EC6FF) // For secondary containers
+val SecondaryBlueDark = Color(0xFF0069C0)  // For secondary emphasis
 
-// Neutral Colors
-val GreyLight = Color(0xFFF5F5F5)
-val GreyDark = Color(0xFF616161)
+// Surface and Background Colors
+val BackgroundWhite = Color(0xFFFFFFFF)    // Main background
+val SurfaceLight = Color(0xFFF8F9FA)       // Surface colors
+val GreyBackground = Color(0xFFF5F7F9)     // Alternative background
 
-// Error Color
-val RedError = Color(0xFFD32F2F)
+// Accent Colors (for status and actions)
+val SuccessGreen = Color(0xFF4CAF50)       // Success states
+val WarningAmber = Color(0xFFFFA000)       // Warning states
+val ErrorRed = Color(0xFFE53935)           // Error states
+
+// Text and Icon Colors
+val TextPrimary = Color(0xFF1F2937)        // Primary text
+val TextSecondary = Color(0xFF6B7280)      // Secondary text
+val TextDisabled = Color(0xFFAEB5BC)       // Disabled text
