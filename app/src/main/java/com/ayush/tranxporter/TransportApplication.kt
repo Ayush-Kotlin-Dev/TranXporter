@@ -1,7 +1,7 @@
 package com.ayush.tranxporter
 
 import android.app.Application
-import com.ayush.tranxporter.di.auth.appModule
+import com.ayush.tranxporter.core.di.appModule
 import com.google.android.libraries.places.api.Places
 import com.google.firebase.FirebaseApp
 import org.koin.android.ext.koin.androidContext
