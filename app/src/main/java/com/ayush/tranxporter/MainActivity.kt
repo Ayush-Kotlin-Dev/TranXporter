@@ -14,8 +14,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallTopAppBar
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -36,14 +36,12 @@ import com.ayush.tranxporter.driver.DriverScreen
 import com.ayush.tranxporter.user.BookingScreen
 import com.ayush.tranxporter.user.LocationSelectionScreen
 import com.google.android.gms.maps.model.LatLng
-import com.google.android.libraries.places.api.Places
 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        FirebaseApp.initializeApp(this)
-        Places.initialize(applicationContext, BuildConfig.MAPS_API_KEY)
+
         val context = this
         setContent {
             TranXporterTheme {
@@ -116,9 +114,9 @@ fun MainScreen() {
 fun HomeScreen(navController: NavHostController) {
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = { Text("TranXporter") },
-                colors = TopAppBarDefaults.smallTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
             )
@@ -145,6 +143,21 @@ fun HomeScreen(navController: NavHostController) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
             ) {
                 Text("Driver Mode")
+            }
+            
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = { 
+                    Firebase.auth.signOut()
+                    navController.navigate("auth") {
+                        popUpTo("home") { inclusive = true }
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+            ) {
+                Text("Logout")
             }
         }
     }

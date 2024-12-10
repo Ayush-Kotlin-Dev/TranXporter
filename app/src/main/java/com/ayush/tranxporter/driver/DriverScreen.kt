@@ -22,7 +22,7 @@ fun DriverScreen() {
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            CenterAlignedTopAppBar(
                 title = { Text("Available Rides") }
             )
         }

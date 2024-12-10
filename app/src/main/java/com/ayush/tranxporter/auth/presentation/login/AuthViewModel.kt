@@ -1,17 +1,29 @@
 package com.ayush.tranxporter.auth.presentation.login
 
+import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ayush.tranxporter.auth.domain.FirebaseAuthManager
+import com.google.firebase.auth.PhoneAuthCredential
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class AuthViewModel : ViewModel() {
+class AuthViewModel(
+    private val authManager: FirebaseAuthManager
+) : ViewModel() {
     private val _state = MutableStateFlow(AuthState())
     val state = _state.asStateFlow()
 
-    fun onEvent(event: AuthEvent) {
+    init {
+        // Check if user is already signed in
+        if (authManager.isUserSignedIn()) {
+            _state.update { it.copy(isAuthenticated = true) }
+        }
+    }
+
+    fun onEvent(event: AuthEvent, activity: Activity? = null) {
         when (event) {
             is AuthEvent.OnPhoneNumberChange -> {
                 if (event.number.length <= 10) {
@@ -21,25 +33,41 @@ class AuthViewModel : ViewModel() {
                     ) }
                 }
             }
+
             is AuthEvent.OnSubmitPhone -> {
-                if (state.value.isPhoneValid) {
+                if (state.value.isPhoneValid && activity != null) {
                     viewModelScope.launch {
                         _state.update { it.copy(isLoading = true) }
                         try {
-                            kotlinx.coroutines.delay(1500)
-                            _state.update { it.copy(
-                                showOtpInput = true,
-                                isLoading = false
-                            ) }
+                            authManager.sendVerificationCode(
+                                phoneNumber = "+91${state.value.phoneNumber}",
+                                activity = activity,
+                                onCodeSent = {
+                                    _state.update { it.copy(
+                                        showOtpInput = true,
+                                        isLoading = false
+                                    ) }
+                                },
+                                onVerificationCompleted = { credential ->
+                                    handleCredential(credential)
+                                },
+                                onError = { error ->
+                                    _state.update { it.copy(
+                                        error = error,
+                                        isLoading = false
+                                    ) }
+                                }
+                            )
                         } catch (e: Exception) {
                             _state.update { it.copy(
-                                error = e.message,
+                                error = e.message ?: "Failed to send OTP",
                                 isLoading = false
                             ) }
                         }
                     }
                 }
             }
+
             is AuthEvent.OnOtpAction -> {
                 when (event.action) {
                     is OtpAction.OnChangeFieldFocused -> {
@@ -69,24 +97,93 @@ class AuthViewModel : ViewModel() {
                     }
                 }
             }
+
             is AuthEvent.OnVerifyOtp -> {
-                if (state.value.otpState.isValid == true) {
+                val otpCode = state.value.otpState.code.joinToString("")
+                if (otpCode.length == 6) {
                     viewModelScope.launch {
                         _state.update { it.copy(isLoading = true) }
-                        try {
-                            kotlinx.coroutines.delay(1500)
+                        authManager.verifyCode(
+                            code = otpCode,
+                            onSuccess = {
+                                _state.update { it.copy(
+                                    isAuthenticated = true,
+                                    isLoading = false
+                                ) }
+                            },
+                            onError = { error ->
+                                _state.update { it.copy(
+                                    error = error,
+                                    isLoading = false
+                                ) }
+                            }
+                        )
+                    }
+                }
+            }
+
+            is AuthEvent.OnResendOtp -> {
+                activity?.let { act ->
+                    _state.update { it.copy(isLoading = true) }
+                    authManager.sendVerificationCode(
+                        phoneNumber = "+91${state.value.phoneNumber}",
+                        activity = act,
+                        onCodeSent = {
                             _state.update { it.copy(
-                                isAuthenticated = true,
-                                isLoading = false
+                                isLoading = false,
+                                otpState = OtpState(code = (1..6).map { null })
                             ) }
-                        } catch (e: Exception) {
+                        },
+                        onVerificationCompleted = { credential ->
+                            handleCredential(credential)
+                        },
+                        onError = { error ->
                             _state.update { it.copy(
-                                error = e.message,
+                                error = error,
                                 isLoading = false
                             ) }
                         }
-                    }
+                    )
                 }
+            }
+        }
+    }
+
+
+    private fun handleCredential(credential: PhoneAuthCredential) {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            try {
+                // Auto-fill the OTP if available
+                credential.smsCode?.let { smsCode ->
+                    val otpDigits = smsCode.map { it.toString().toIntOrNull() }
+                    _state.update { it.copy(
+                        otpState = it.otpState.copy(
+                            code = otpDigits
+                        )
+                    ) }
+                }
+
+                authManager.verifyCode(
+                    code = credential.smsCode ?: "",
+                    onSuccess = {
+                        _state.update { it.copy(
+                            isAuthenticated = true,
+                            isLoading = false
+                        ) }
+                    },
+                    onError = { error ->
+                        _state.update { it.copy(
+                            error = error,
+                            isLoading = false
+                        ) }
+                    }
+                )
+            } catch (e: Exception) {
+                _state.update { it.copy(
+                    error = e.message ?: "Authentication failed",
+                    isLoading = false
+                ) }
             }
         }
     }
@@ -111,11 +208,36 @@ class AuthViewModel : ViewModel() {
                         currentFocusedIndex = it.otpState.focusedIndex
                     )
                 },
+                // Update validation logic
                 isValid = if(newCode.none { it == null }) {
-                    newCode.joinToString("") == "1414"
+                    true  // If all fields are filled, enable verification button
                 } else null
             )
         ) }
+
+        // Automatically trigger verification if all digits are entered
+        if (newCode.none { it == null }) {
+            viewModelScope.launch {
+                val otpCode = newCode.joinToString("")
+                _state.update { it.copy(isLoading = true) }
+                authManager.verifyCode(
+                    code = otpCode,
+                    onSuccess = {
+                        _state.update { it.copy(
+                            isAuthenticated = true,
+                            isLoading = false
+                        ) }
+                    },
+                    onError = { error ->
+                        _state.update { it.copy(
+                            error = error,
+                            isLoading = false,
+                            otpState = it.otpState.copy(isValid = false)
+                        ) }
+                    }
+                )
+            }
+        }
     }
 
     private fun getPreviousFocusedIndex(currentIndex: Int?): Int? {
@@ -130,7 +252,7 @@ class AuthViewModel : ViewModel() {
             return null
         }
 
-        if(currentFocusedIndex == 3) {
+        if(currentFocusedIndex == 5) {
             return currentFocusedIndex
         }
 

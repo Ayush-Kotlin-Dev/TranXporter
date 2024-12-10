@@ -76,7 +76,7 @@ fun LocationSelectionScreen(navController: NavHostController) {
 
     Scaffold(
         topBar = {
-            SmallTopAppBar(
+            TopAppBar(
                 title = {
                     Text(
                         "Select Location",
@@ -96,7 +96,7 @@ fun LocationSelectionScreen(navController: NavHostController) {
                         )
                     }
                 },
-                colors = TopAppBarDefaults.smallTopAppBarColors(
+                colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
             )
@@ -196,8 +196,9 @@ fun LocationSelectionScreen(navController: NavHostController) {
                                 )
                             }
                         },
-                        colors = TextFieldDefaults.textFieldColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                             cursorColor = MaterialTheme.colorScheme.primary

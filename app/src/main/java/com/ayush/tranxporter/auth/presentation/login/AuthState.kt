@@ -7,7 +7,7 @@ data class AuthState(
     val isLoading: Boolean = false,
     val error: String? = null,
     val otpState: OtpState = OtpState(
-        code = (1..4).map { null },
+        code = (1..6).map { null },
         focusedIndex = null,
         isValid = null
     ),

@@ -1,5 +1,6 @@
 package com.ayush.tranxporter.auth.presentation.login
 
+import android.app.Activity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,11 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
+import com.google.android.gms.auth.api.Auth
+import org.koin.androidx.compose.koinViewModel
 
 data class AuthScreen(
     val onAuthenticated: () -> Unit,
@@ -24,9 +28,11 @@ data class AuthScreen(
 
     @Composable
     override fun Content() {
-        val viewModel = remember { AuthViewModel() }
+        val viewModel = koinViewModel<AuthViewModel>()
         val state by viewModel.state.collectAsState()
-        val focusRequesters = remember { List(4) { FocusRequester() } }
+        val context = LocalContext.current
+        val activity = remember { context as Activity }
+        val focusRequesters = remember { List(6) { FocusRequester() } }
         val focusManager = LocalFocusManager.current
         val keyboardManager = LocalSoftwareKeyboardController.current
 
@@ -75,7 +81,7 @@ data class AuthScreen(
                         phoneNumber = state.phoneNumber,
                         isValid = state.isPhoneValid,
                         onPhoneNumberChange = { viewModel.onEvent(AuthEvent.OnPhoneNumberChange(it)) },
-                        onSubmit = { viewModel.onEvent(AuthEvent.OnSubmitPhone) }
+                        onSubmit = { viewModel.onEvent(AuthEvent.OnSubmitPhone, activity) }
                     )
                 }
                 AnimatedVisibility(

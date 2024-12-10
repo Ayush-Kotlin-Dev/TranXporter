@@ -5,4 +5,5 @@ sealed interface AuthEvent {
     object OnSubmitPhone : AuthEvent
     data class OnOtpAction(val action: OtpAction) : AuthEvent
     object OnVerifyOtp : AuthEvent
+    object OnResendOtp : AuthEvent
 }
