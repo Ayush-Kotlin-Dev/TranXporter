@@ -1,21 +1,26 @@
 package com.ayush.tranxporter.core.presentation.onboard
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import com.ayush.tranxporter.R
+import com.ayush.tranxporter.core.presentation.util.PermissionUtils
 import com.google.accompanist.pager.*
 import kotlinx.coroutines.launch
 
@@ -26,15 +31,13 @@ data class OnboardingScreen(
     @Composable
     override fun Content() {
         val pagerState = rememberPagerState()
-
+        TopSection(
+            pagerState = pagerState,
+            onSkipClick = onFinishOnboarding
+        )
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            TopSection(
-                pagerState = pagerState,
-                onSkipClick = onFinishOnboarding
-            )
-
             HorizontalPager(
                 count = 3,
                 state = pagerState,
@@ -62,7 +65,6 @@ fun TopSection(
             .fillMaxWidth()
             .padding(12.dp)
     ) {
-        // Skip button only shown on first two pages
         AnimatedVisibility(
             modifier = Modifier.align(Alignment.CenterEnd),
             visible = pagerState.currentPage < 2
@@ -119,6 +121,24 @@ fun WelcomePage() {
 
 @Composable
 fun PermissionsPage() {
+    val context = LocalContext.current
+    var permissionsState by remember {
+        mutableStateOf(
+            PermissionUtils.requiredPermissions.associateWith { permission ->
+                PermissionUtils.checkPermission(context, permission.permission)
+            }
+        )
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        // Update the permission state that was just requested
+        permissionsState = permissionsState.mapValues { (permission, _) ->
+            PermissionUtils.checkPermission(context, permission.permission)
+        }
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(24.dp)
@@ -129,22 +149,80 @@ fun PermissionsPage() {
             fontWeight = FontWeight.Bold
         )
 
-        PermissionItem(
-            title = "Location Access",
-            description = "To track shipments and find nearby drivers",
-            icon = R.drawable.ic_location // Add your icons
-        )
+        PermissionUtils.requiredPermissions.forEach { permission ->
+            PermissionItemWithChip(
+                permission = permission,
+                isGranted = permissionsState[permission] ?: false,
+                onRequestPermission = {
+                    permissionLauncher.launch(permission.permission)
+                }
+            )
+        }
+    }
+}
 
-        PermissionItem(
-            title = "Manage Call Logs",
-            description = "For seamless communication with drivers",
-            icon = R.drawable.ic_call
-        )
+@Composable
+fun PermissionItemWithChip(
+    permission: PermissionUtils.Permission,
+    isGranted: Boolean,
+    onRequestPermission: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(id = permission.icon),
+                contentDescription = permission.title,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
 
-        PermissionItem(
-            title = "Store Call Logs",
-            description = "To maintain delivery records",
-            icon = R.drawable.ic_storage
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column {
+                Text(
+                    text = permission.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = permission.description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        AssistChip(
+            onClick = onRequestPermission,
+            label = {
+                Text(if (isGranted) "Granted" else "Grant")
+            },
+            leadingIcon = if (isGranted) {
+                {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else null,
+            colors = AssistChipDefaults.assistChipColors(
+                containerColor = if (isGranted)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.surface
+            )
         )
     }
 }

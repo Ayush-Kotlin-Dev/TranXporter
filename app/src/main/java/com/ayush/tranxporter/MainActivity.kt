@@ -1,7 +1,6 @@
 package com.ayush.tranxporter
 
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -26,9 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import com.ayush.tranxporter.ui.theme.TranXporterTheme
 import com.google.firebase.Firebase
-import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.auth
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -41,6 +40,7 @@ import com.ayush.tranxporter.core.presentation.onboard.OnboardingScreen
 import com.ayush.tranxporter.driver.DriverScreen
 import com.ayush.tranxporter.user.BookingScreen
 import com.ayush.tranxporter.user.LocationSelectionScreen
+import com.ayush.tranxporter.user.SearchLocationScreen
 import com.google.android.gms.maps.model.LatLng
 import org.koin.androidx.compose.koinViewModel
 
@@ -75,7 +75,11 @@ fun MainScreen() {
         navController = navController,
         startDestination = if (currentUser != null) "home" else "auth"
     ) {
-
+        composable("auth") {
+            Navigator(
+                AuthScreen({ navController.navigate("home") })
+            )
+        }
         composable("home") {
             HomeScreen(navController)
         }

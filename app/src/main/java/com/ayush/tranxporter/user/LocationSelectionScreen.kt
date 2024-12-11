@@ -1,7 +1,8 @@
 package com.ayush.tranxporter.user
+
 import android.content.Context
+import android.content.pm.PackageManager
 import android.location.Geocoder
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,18 +22,24 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.tasks.await
 import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import com.ayush.tranxporter.PlacePrediction
 import com.ayush.tranxporter.R
-import com.ayush.tranxporter.searchPlaces
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import android.Manifest
+import com.ayush.tranxporter.core.presentation.util.PermissionUtils
 
+// LocationSelectionScreen Composable
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LocationSelectionScreen(navController: NavHostController) {
@@ -41,7 +48,88 @@ fun LocationSelectionScreen(navController: NavHostController) {
     var predictions by remember { mutableStateOf<List<PlacePrediction>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
-    var currentAddress by remember { mutableStateOf<String>("Fetching location...") }
+    var currentAddress by remember { mutableStateOf<String>("Location permission required") }
+    var hasLocationPermission by remember {
+        mutableStateOf(PermissionUtils.checkLocationPermission(context))
+    }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+
+    // Permission launcher
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasLocationPermission = isGranted
+        if (isGranted) {
+            currentAddress = "Fetching location..."
+        } else {
+            currentAddress = "Location permission required"
+        }
+    }
+
+    // Get current location when permission is granted
+    LaunchedEffect(hasLocationPermission) {
+        if (hasLocationPermission) {
+            PermissionUtils.getCurrentLocation(context)?.let { location ->
+                currentLocation = location
+                currentAddress = PermissionUtils.getAddressFromLocation(context, location)
+            } ?: run {
+                currentAddress = "Unable to get location"
+            }
+        }
+    }
+
+    // Permission Dialog
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            title = { Text("Location Permission Required") },
+            text = {
+                Text(
+                    PermissionUtils.requiredPermissions
+                    .find { it.permission == PermissionUtils.LOCATION_PERMISSION }
+                    ?.description ?: "We need location permission to show nearby places.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPermissionDialog = false
+                        locationPermissionLauncher.launch(PermissionUtils.LOCATION_PERMISSION)
+                    }
+                ) {
+                    Text("Grant Permission")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Permission Dialog
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showPermissionDialog = false },
+            title = { Text("Location Permission Required") },
+            text = { Text("We need location permission to show nearby places and provide better service.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPermissionDialog = false
+                        locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    }
+                ) {
+                    Text("Grant Permission")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPermissionDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     // Get current location and address immediately
     LaunchedEffect(Unit) {
@@ -124,6 +212,11 @@ fun LocationSelectionScreen(navController: NavHostController) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable {
+                                if (!hasLocationPermission) {
+                                    showPermissionDialog = true
+                                }
+                            }
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -234,11 +327,17 @@ fun LocationSelectionScreen(navController: NavHostController) {
                     LocationSuggestionItem(
                         prediction = prediction,
                         onItemClick = {
-                            currentLocation?.let { pickup ->
+                            if (currentLocation == null) {
+                                Toast.makeText(
+                                    context,
+                                    "Please enable location services to continue",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
                                 navController.navigate(
                                     "booking?" +
-                                            "pickup_lat=${pickup.latitude}&" +
-                                            "pickup_lng=${pickup.longitude}&" +
+                                            "pickup_lat=${currentLocation?.latitude}&" +
+                                            "pickup_lng=${currentLocation?.longitude}&" +
                                             "drop_lat=${prediction.latitude}&" +
                                             "drop_lng=${prediction.longitude}"
                                 )
@@ -251,6 +350,7 @@ fun LocationSelectionScreen(navController: NavHostController) {
     }
 }
 
+// LocationSuggestionItem Composable
 @Composable
 private fun LocationSuggestionItem(
     prediction: PlacePrediction,
@@ -303,7 +403,8 @@ private fun LocationSuggestionItem(
         }
     }
 }
-// Add this function
+
+// Function to get address from location
 private suspend fun getAddressFromLocation(context: Context, latLng: LatLng): String {
     return withContext(Dispatchers.IO) {
         try {
