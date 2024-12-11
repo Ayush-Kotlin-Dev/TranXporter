@@ -37,8 +37,13 @@ import java.util.Locale
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import android.Manifest
+import androidx.compose.foundation.BorderStroke
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils
-
+import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
+import org.koin.androidx.compose.koinViewModel
+enum class TextFieldType {
+    PICKUP, DROP, NONE
+}
 // LocationSelectionScreen Composable
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,7 +57,11 @@ fun LocationSelectionScreen(navController: NavHostController) {
     var hasLocationPermission by remember {
         mutableStateOf(PermissionUtils.checkLocationPermission(context))
     }
+    val viewModel = koinViewModel<LocationSelectionViewModel>()
     var showPermissionDialog by remember { mutableStateOf(false) }
+    var activeTextField by remember { mutableStateOf<TextFieldType>(TextFieldType.NONE) }
+
+
 
     // Permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
@@ -67,11 +76,18 @@ fun LocationSelectionScreen(navController: NavHostController) {
     }
 
     // Get current location when permission is granted
+    // Update the LaunchedEffect for location
+    // Get current location when permission is granted
     LaunchedEffect(hasLocationPermission) {
         if (hasLocationPermission) {
             PermissionUtils.getCurrentLocation(context)?.let { location ->
                 currentLocation = location
+                viewModel.updateCurrentLocation(location)  // Changed this line
                 currentAddress = PermissionUtils.getAddressFromLocation(context, location)
+                // If pickup isn't set yet, set it as current location
+                if (viewModel.pickupLocation == null) {
+                    viewModel.setPickupLocation(location, currentAddress)
+                }
             } ?: run {
                 currentAddress = "Unable to get location"
             }
@@ -135,7 +151,7 @@ fun LocationSelectionScreen(navController: NavHostController) {
     LaunchedEffect(Unit) {
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         try {
-            val permissionCheck = context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
+            val permissionCheck = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
             if (permissionCheck == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 val location = fusedLocationClient.lastLocation.await()
                 location?.let {
@@ -197,13 +213,17 @@ fun LocationSelectionScreen(navController: NavHostController) {
                 .padding(padding)
         ) {
             // Location Selection Card
-            Surface(
+            Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(16.dp),
                 shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 2.dp
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 2.dp
+                )
             ) {
                 Column(
                     modifier = Modifier.padding(16.dp)
@@ -212,12 +232,15 @@ fun LocationSelectionScreen(navController: NavHostController) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable {
-                                if (!hasLocationPermission) {
-                                    showPermissionDialog = true
+                            .clickable(
+                                enabled = hasLocationPermission,
+                                onClick = {
+                                    if (!hasLocationPermission) {
+                                        showPermissionDialog = true
+                                    }
                                 }
-                            }
-                            .padding(vertical = 8.dp),
+                            )
+                            .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(
@@ -236,16 +259,18 @@ fun LocationSelectionScreen(navController: NavHostController) {
                                 modifier = Modifier.size(24.dp)
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(16.dp))
                         Column {
                             Text(
-                                "Current Location",
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                                text = "Current Location",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (hasLocationPermission)
+                                    MaterialTheme.colorScheme.onSurface
+                                else
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                             Text(
-                                currentAddress,
+                                text = currentAddress,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2,
@@ -256,22 +281,25 @@ fun LocationSelectionScreen(navController: NavHostController) {
 
                     Divider(
                         modifier = Modifier
-                            .padding(vertical = 12.dp)
-                            .fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            .padding(vertical = 8.dp)
+                            .fillMaxWidth()
                     )
 
-                    // Search TextField
+                    // Drop Location TextField
                     TextField(
                         value = searchQuery,
-                        onValueChange = { searchQuery = it },
+                        onValueChange = {
+                            searchQuery = it
+                            activeTextField = TextFieldType.DROP
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
                         placeholder = {
                             Text(
                                 "Where to?",
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
                         },
                         leadingIcon = {
@@ -317,30 +345,47 @@ fun LocationSelectionScreen(navController: NavHostController) {
                     )
                 }
             }
-
+            // Select on Map Button
+            OutlinedButton(
+                onClick = { navController.navigate("map") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+            ) {
+                Icon(
+                    Icons.Default.Place,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Select on map")
+            }
             // Predictions List
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
+                // Update the predictions list handler
                 items(predictions) { prediction ->
                     LocationSuggestionItem(
                         prediction = prediction,
                         onItemClick = {
-                            if (currentLocation == null) {
-                                Toast.makeText(
-                                    context,
-                                    "Please enable location services to continue",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                            val latLng = LatLng(prediction.latitude, prediction.longitude)
+                            if (activeTextField == TextFieldType.PICKUP) {
+                                viewModel.setPickupLocation(latLng, prediction.mainText)
                             } else {
-                                navController.navigate(
-                                    "booking?" +
-                                            "pickup_lat=${currentLocation?.latitude}&" +
-                                            "pickup_lng=${currentLocation?.longitude}&" +
-                                            "drop_lat=${prediction.latitude}&" +
-                                            "drop_lng=${prediction.longitude}"
-                                )
+                                viewModel.setDropLocation(latLng, prediction.mainText)
+                                if (viewModel.pickupLocation != null) {
+                                    navController.navigate(
+                                        "booking?" +
+                                                "pickup_lat=${viewModel.pickupLocation?.latLng?.latitude}&" +
+                                                "pickup_lng=${viewModel.pickupLocation?.latLng?.longitude}&" +
+                                                "drop_lat=${latLng.latitude}&" +
+                                                "drop_lng=${latLng.longitude}"
+                                    )
+                                }
                             }
                         }
                     )
@@ -403,7 +448,55 @@ private fun LocationSuggestionItem(
         }
     }
 }
-
+@Composable
+private fun RecentLocationItem(
+    prediction: PlacePrediction,
+    onItemClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onItemClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    shape = CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Default.LocationOn,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = prediction.mainText,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = prediction.secondaryText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        IconButton(onClick = { /* Handle favorite */ }) {
+            Icon(
+                Icons.Default.FavoriteBorder,
+                contentDescription = "Favorite",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
 // Function to get address from location
 private suspend fun getAddressFromLocation(context: Context, latLng: LatLng): String {
     return withContext(Dispatchers.IO) {

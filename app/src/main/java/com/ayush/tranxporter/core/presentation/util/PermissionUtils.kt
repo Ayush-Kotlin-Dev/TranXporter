@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.Locale
-import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.LatLng  // Use this instead of com.google.type.LatLng
 
 object PermissionUtils {
     // Permission definitions
