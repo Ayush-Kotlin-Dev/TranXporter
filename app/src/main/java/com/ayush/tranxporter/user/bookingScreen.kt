@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,14 +61,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.ayush.tranxporter.R
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils.getAddressFromLocation
 import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
 import com.ayush.tranxporter.utils.calculateFare
+import com.ayush.tranxporter.utils.getDrivingDistance
 import com.ayush.tranxporter.utils.getRoutePoints
 import com.ayush.tranxporter.utils.getTravelTime
-import com.ayush.tranxporter.utils.haversineDistance
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.gms.location.LocationServices
@@ -156,17 +158,52 @@ fun BookingScreen(
             }
         }
     }
+
+    var drivingDistance by remember { mutableStateOf<Double?>(null) }
+
 // Add this effect to fetch route points when locations change
+    var smallTruckFare by remember { mutableStateOf<Double?>(null) }
+    var largeTruckFare by remember { mutableStateOf<Double?>(null) }
+
+// Update the LaunchedEffect that handles distance and fare calculations
     LaunchedEffect(pickupLocation, dropOffLocation) {
         if (pickupLocation != null && dropOffLocation != null) {
             try {
+                // Reset values while calculating
+                drivingDistance = null
+                smallTruckFare = null
+                largeTruckFare = null
+
+                // Get route points and distance
                 val points = getRoutePoints(pickupLocation!!, dropOffLocation!!)
                 routePoints = points
+
+                // Get driving distance first
+                drivingDistance = getDrivingDistance(pickupLocation!!, dropOffLocation!!)
+
+                // Only calculate fares if we have a valid distance
+                if (drivingDistance != null) {
+                    // Calculate fares
+                    smallTruckFare = calculateFare(
+                        pickupLocation!!,
+                        dropOffLocation!!,
+                        VehicleType.SMALL_TRUCK
+                    )
+                    largeTruckFare = calculateFare(
+                        pickupLocation!!,
+                        dropOffLocation!!,
+                        VehicleType.LARGE_TRUCK
+                    )
+                }
             } catch (e: Exception) {
-                Log.e("Route", "Failed to get route", e)
+                Log.e("Route", "Failed to get route or calculate fare", e)
+                // Handle error state here if needed
             }
         }
     }
+    
+    
+
     LaunchedEffect(pickupLocation, dropOffLocation) {
         if (pickupLocation != null && dropOffLocation != null) {
             travelTime = getTravelTime(pickupLocation!!, dropOffLocation!!)
@@ -409,7 +446,7 @@ fun BookingScreen(
                             .fillMaxWidth()
                             .align(Alignment.BottomCenter)
                             .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .height(320.dp)  // Adjusted height
+                            .height(380.dp)  // Increased height to accommodate all elements
                             .shadow(
                                 elevation = 2.dp,
                                 shape = RoundedCornerShape(12.dp)
@@ -421,9 +458,9 @@ fun BookingScreen(
                     ) {
                         Column(
                             modifier = Modifier
-                                .padding(12.dp)  // Reduced padding
+                                .padding(16.dp)
                                 .fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)  // Reduced spacing
+                            verticalArrangement = Arrangement.spacedBy(12.dp)  // Increased spacing between elements
                         ) {
                             // Distance Information
                             Row(
@@ -433,26 +470,24 @@ fun BookingScreen(
                             ) {
                                 Text(
                                     text = "Distance",
-                                    style = MaterialTheme.typography.bodyMedium,  // Smaller text
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = "%.1f km".format(
-                                        haversineDistance(
-                                            pickupLocation!!,
-                                            dropOffLocation!!
-                                        )
-                                    ),
+                                    text = when {
+                                        drivingDistance != null -> "%.1f km".format(drivingDistance)
+                                        pickupLocation != null && dropOffLocation != null -> "Calculating..."
+                                        else -> "-"
+                                    },
                                     style = MaterialTheme.typography.bodyLarge,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-
                             Divider(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp),  // Reduced padding
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)  // Lighter divider
+                                    .padding(vertical = 4.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                             )
 
                             // Vehicle Options
@@ -460,8 +495,7 @@ fun BookingScreen(
                                 vehicle = "Small Truck",
                                 icon = R.drawable.pickup_truck,
                                 time = travelTime ?: "Calculating...",
-                                price = "${calculateFare(pickupLocation!!, dropOffLocation!!, VehicleType.SMALL_TRUCK)}",
-
+                                price = smallTruckFare?.let { "₹${it.toInt()}" } ?: "Calculating...",
                                 isSelected = true
                             )
 
@@ -476,13 +510,7 @@ fun BookingScreen(
                                 vehicle = "Large Truck",
                                 icon = R.drawable.truck,
                                 time = travelTime ?: "Calculating...",
-                                price = "${
-                                    (calculateFare(
-                                        pickupLocation!!,
-                                        dropOffLocation!!,
-                                        VehicleType.LARGE_TRUCK
-                                    ))
-                                }",
+                                price = largeTruckFare?.let { "₹${it.toInt()}" } ?: "Calculating...",
                                 isSelected = false
                             )
 
@@ -491,11 +519,21 @@ fun BookingScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                PaymentOption(text = "Cash", icon = Icons.Default.Star)
-                                PaymentOption(text = "Offers", icon = Icons.Default.Notifications)
+                                PaymentOption(
+                                    text = "Cash",
+                                    icon = Icons.Default.Star,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                PaymentOption(
+                                    text = "Offers",
+                                    icon = Icons.Default.Notifications,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
+                            Spacer(modifier = Modifier.weight(1f))  // Push button to bottom
 
                             // Book Button - Removed Clear button to match reference
                             Button(
@@ -524,7 +562,6 @@ fun BookingScreen(
     }
 }
 
-
 @Composable
 private fun VehicleOption(
     vehicle: String,
@@ -536,8 +573,8 @@ private fun VehicleOption(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .height(72.dp)
             .clickable { /* Handle selection */ }
-            // Add border and background when selected
             .border(
                 width = if (isSelected) 2.dp else 0.dp,
                 color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -548,11 +585,17 @@ private fun VehicleOption(
                 else Color.Transparent,
                 shape = RoundedCornerShape(12.dp)
             )
-            .padding(12.dp),  // Increased padding for better visual
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // Left section with icon and details
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
+        ) {
+            // Vehicle Icon
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -573,54 +616,75 @@ private fun VehicleOption(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Vehicle details
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.Start
                 ) {
                     Text(
                         text = vehicle,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.bodyMedium,  // Reduced from bodyLarge
+                        fontWeight = FontWeight.SemiBold,  // Changed from Bold
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f, fill = false)  // Take only needed space
                     )
                     if (isSelected) {
+                        Spacer(modifier = Modifier.width(8.dp))
                         Surface(
                             color = MaterialTheme.colorScheme.primary,
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(8.dp)  // Reduced from 12.dp
                         ) {
                             Text(
                                 "FASTEST",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),  // Reduced padding
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.White
+                                fontSize = 10.sp,  // Explicitly set smaller font size
+                                color = Color.White,
+                                maxLines = 1
                             )
                         }
                     }
                 }
                 Text(
-                    text = "$time • Drop ${
-                        LocalTime.now().plusMinutes(
-                            (time.split(" ")[0].toIntOrNull() ?: 0).toLong()
-                        ).format(DateTimeFormatter.ofPattern("hh:mm a"))
-                    }",
+                    text = buildString {
+                        append(time)
+                        if (time != "Calculating...") {
+                            append(" • Drop ")
+                            append(
+                                LocalTime.now()
+                                    .plusMinutes((time.split(" ")[0].toIntOrNull() ?: 0).toLong())
+                                    .format(DateTimeFormatter.ofPattern("hh:mm a"))
+                            )
+                        }
+                    },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
             }
         }
 
+        // Right section with price and arrow
         Row(
+            modifier = Modifier.widthIn(min = 80.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.End
         ) {
             Text(
-                text = "₹${price.toDouble().toInt()}",
+                text = price,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = if (isSelected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
             )
             if (isSelected) {
+                Spacer(modifier = Modifier.width(4.dp))
                 Icon(
                     imageVector = Icons.Default.KeyboardArrowRight,
                     contentDescription = null,
@@ -631,37 +695,41 @@ private fun VehicleOption(
         }
     }
 }
-
+// Updated PaymentOption composable
 @Composable
-private fun PaymentOption(text: String, icon: ImageVector) {
+private fun PaymentOption(
+    text: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier
+) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .clickable { /* Handle click */ }
-            .padding(vertical = 4.dp, horizontal = 8.dp),  // Reduced padding
+            .padding(vertical = 8.dp, horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)  // Reduced spacing
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Icon(
             painter = painterResource(
                 id = if (text == "Cash") R.drawable.cash else R.drawable.offers
             ),
             contentDescription = null,
-            modifier = Modifier.size(20.dp),  // Reduced size
+            modifier = Modifier.size(24.dp),
             tint = MaterialTheme.colorScheme.onSurface
         )
         Text(
             text = text,
-            style = MaterialTheme.typography.bodyMedium  // Smaller text
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
         )
         Icon(
             Icons.Default.KeyboardArrowRight,
             contentDescription = null,
-            modifier = Modifier.size(16.dp),  // Reduced size
+            modifier = Modifier.size(20.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
-
 enum class VehicleType {
     SMALL_TRUCK,
     LARGE_TRUCK
