@@ -1,6 +1,5 @@
 package com.ayush.tranxporter.core.domain.repository
 
-import com.ayush.tranxporter.core.components.UserType
 import kotlinx.coroutines.flow.Flow
 
 interface UserStateRepository {

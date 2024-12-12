@@ -2,13 +2,10 @@ package com.ayush.tranxporter
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ayush.tranxporter.core.data.UserPreferences
 import com.ayush.tranxporter.core.domain.model.AppState
 import com.ayush.tranxporter.core.domain.repository.UserStateRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 
 

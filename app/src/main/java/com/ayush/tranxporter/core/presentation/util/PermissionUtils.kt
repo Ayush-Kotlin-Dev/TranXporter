@@ -8,12 +8,12 @@ import android.util.Log
 import androidx.core.content.ContextCompat
 import com.ayush.tranxporter.R
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.Locale
-import com.google.android.gms.maps.model.LatLng  // Use this instead of com.google.type.LatLng
-import kotlinx.coroutines.launch
 
 object PermissionUtils {
     // Permission definitions

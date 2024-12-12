@@ -1,6 +1,5 @@
 package com.ayush.tranxporter.core.data.repository
 
-import com.ayush.tranxporter.core.components.UserType
 import com.ayush.tranxporter.core.data.UserPreferences
 import com.ayush.tranxporter.core.domain.repository.UserStateRepository
 import kotlinx.coroutines.flow.Flow
