@@ -65,6 +65,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.ayush.tranxporter.R
+import com.ayush.tranxporter.core.presentation.util.PermissionUtils
+import com.ayush.tranxporter.core.presentation.util.PermissionUtils.getAddressFromLocation
+import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
 import com.ayush.tranxporter.utils.calculateFare
 import com.ayush.tranxporter.utils.getRoutePoints
 import com.ayush.tranxporter.utils.getTravelTime
@@ -87,6 +90,7 @@ import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import org.koin.androidx.compose.koinViewModel
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.atan2
@@ -101,7 +105,9 @@ import kotlin.math.sqrt
 fun BookingScreen(
     navController: NavHostController,
     initialPickup: LatLng? = null,
-    initialDropoff: LatLng? = null
+    initialDropoff: LatLng? = null,
+    locationType: String? = null,
+    viewModel: LocationSelectionViewModel
 ) {
     val permissionState = rememberMultiplePermissionsState(
         listOf(
@@ -116,10 +122,8 @@ fun BookingScreen(
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
     // Initialize with passed locations
-    var pickupLocation by remember { mutableStateOf(initialPickup) }
-    var dropOffLocation by remember { mutableStateOf(initialDropoff) }
-
-
+    var pickupLocation = viewModel.pickupLocation?.latLng ?: initialPickup
+    var dropOffLocation = viewModel.dropLocation?.latLng ?: initialDropoff
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
     }
@@ -129,7 +133,7 @@ fun BookingScreen(
     val scope = rememberCoroutineScope()
 // Initialize route if both locations are provided
     LaunchedEffect(Unit) {
-        if (initialPickup != null && initialDropoff != null) {
+        if (initialPickup != null && initialDropoff != null && viewModel.pickupLocation == null) {
             pickupLocation = initialPickup
             dropOffLocation = initialDropoff
 
@@ -168,11 +172,15 @@ fun BookingScreen(
         }
     }
     LaunchedEffect(permissionState.allPermissionsGranted) {
-        if (permissionState.allPermissionsGranted) {
+        if (permissionState.allPermissionsGranted &&
+            viewModel.isUsingCurrentLocation &&
+            viewModel.pickupLocation == null) {  // Add this condition
             fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
                 location?.let {
                     currentLocation = LatLng(it.latitude, it.longitude)
                     coroutineScope.launch {
+                        val address = getAddressFromLocation(context, currentLocation!!)
+                        viewModel.updateCurrentLocation(currentLocation!!, address)
                         cameraPositionState.animate(
                             CameraUpdateFactory.newLatLngZoom(currentLocation!!, 15f)
                         )
@@ -254,9 +262,28 @@ fun BookingScreen(
                     properties = MapProperties(isMyLocationEnabled = true),
                     uiSettings = MapUiSettings(myLocationButtonEnabled = false),
                     onMapClick = { latLng ->
-                        when {
-                            pickupLocation == null -> pickupLocation = latLng
-                            dropOffLocation == null -> dropOffLocation = latLng
+                        scope.launch {
+                            val address = getAddressFromLocation(context, latLng)
+                            when (locationType?.lowercase()) {
+                                "pickup" -> {
+                                    viewModel.setPickupLocation(latLng, address)
+                                    navController.navigateUp()
+                                }
+                                "drop" -> {
+                                    viewModel.setDropLocation(latLng, address)
+                                    navController.navigateUp()
+                                }
+                                else -> {
+                                    when {
+                                        pickupLocation == null -> {
+                                            viewModel.setPickupLocation(latLng, address)
+                                        }
+                                        dropOffLocation == null -> {
+                                            viewModel.setDropLocation(latLng, address)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 ) {

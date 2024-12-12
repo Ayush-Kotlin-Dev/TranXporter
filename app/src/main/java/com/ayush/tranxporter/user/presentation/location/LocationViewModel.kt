@@ -1,49 +1,66 @@
 package com.ayush.tranxporter.user.presentation.location
 
-import androidx.compose.runtime.getValue
+import android.util.Log
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.gms.maps.model.LatLng
 
 class LocationSelectionViewModel : ViewModel() {
-    var pickupLocation by mutableStateOf<LocationDetails?>(null)
-        private set
+    private val _pickupLocation = mutableStateOf<LocationDetails?>(null)
+    val pickupLocation: LocationDetails? get() = _pickupLocation.value
 
-    var dropLocation by mutableStateOf<LocationDetails?>(null)
-        private set
+    private val _dropLocation = mutableStateOf<LocationDetails?>(null)
+    val dropLocation: LocationDetails? get() = _dropLocation.value
 
-    private var _currentUserLocation by mutableStateOf<LatLng?>(null)
-    val currentUserLocation: LatLng? get() = _currentUserLocation
+    private val _isUsingCurrentLocation = mutableStateOf(true)
+    val isUsingCurrentLocation: Boolean get() = _isUsingCurrentLocation.value
 
-    // Use backing property for isSelectingPickup as well
-    private var _isSelectingPickup by mutableStateOf(true)
-    val isSelectingPickup: Boolean get() = _isSelectingPickup
+    private var hasSetInitialLocation = false
 
-    data class LocationDetails(
-        val latLng: LatLng,
-        val address: String
-    )
+    companion object {
+        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                return LocationSelectionViewModel() as T
+            }
+        }
+    }
+
 
     fun setPickupLocation(latLng: LatLng, address: String) {
-        pickupLocation = LocationDetails(latLng, address)
+        _pickupLocation.value = LocationDetails(latLng, address)
+        _isUsingCurrentLocation.value = false // Set to false when user manually selects location
+        Log.d("LocationSelectionViewModel", "setPickupLocation: $latLng, $address")
     }
 
     fun setDropLocation(latLng: LatLng, address: String) {
-        dropLocation = LocationDetails(latLng, address)
+        _dropLocation.value = LocationDetails(latLng, address)
+        _isUsingCurrentLocation.value = false // Set to false when user manually selects location
+        Log.d("LocationSelectionViewModel", "setDropLocation: $latLng, $address")
     }
 
-    fun updateCurrentLocation(latLng: LatLng) {
-        _currentUserLocation = latLng
+    fun updateCurrentLocation(location: LatLng, address: String) {
+        // Only update if we haven't set any location yet
+        if (!hasSetInitialLocation) {
+            _pickupLocation.value = LocationDetails(location, address)
+            hasSetInitialLocation = true
+        }
+        Log.d("LocationSelectionViewModel", "updateCurrentLocation: $location, $address")
     }
 
-    // Renamed to avoid conflict
-    fun updateSelectionMode(isPickup: Boolean) {
-        _isSelectingPickup = isPickup
+    fun resetLocations() {
+        _pickupLocation.value = null
+        _dropLocation.value = null
+        _isUsingCurrentLocation.value = true
     }
 
-    fun clearLocations() {
-        pickupLocation = null
-        dropLocation = null
+    override fun onCleared() {
+        Log.d("LocationSelectionViewModel", "onCleared")
+        super.onCleared()
     }
 }
+data class LocationDetails(
+    val latLng: LatLng,
+    val address: String
+)

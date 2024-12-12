@@ -1,5 +1,6 @@
 package com.ayush.tranxporter
 
+import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,29 +22,33 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.ayush.tranxporter.ui.theme.TranXporterTheme
-import com.google.firebase.Firebase
-import com.google.firebase.auth.auth
-import androidx.navigation.NavHostController
 import androidx.navigation.NavType
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.navigation
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import cafe.adriel.voyager.navigator.Navigator
 import com.ayush.tranxporter.auth.presentation.login.AuthScreen
 import com.ayush.tranxporter.core.domain.model.AppState
 import com.ayush.tranxporter.core.presentation.onboard.OnboardingScreen
 import com.ayush.tranxporter.driver.DriverScreen
+import com.ayush.tranxporter.ui.theme.TranXporterTheme
 import com.ayush.tranxporter.user.BookingScreen
 import com.ayush.tranxporter.user.LocationSelectionScreen
 import com.ayush.tranxporter.user.SearchLocationScreen
+import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
 import com.google.android.gms.maps.model.LatLng
+import com.google.firebase.auth.FirebaseAuth
 import org.koin.androidx.compose.koinViewModel
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,11 +70,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+@SuppressLint("UnrememberedGetBackStackEntry")
 @Composable
 fun MainScreen() {
     val navController = rememberNavController()
-    val auth = Firebase.auth
+    val auth = FirebaseAuth.getInstance()
     val currentUser = auth.currentUser
+
+    // Create an activity-scoped ViewModel
+    val viewModel: LocationSelectionViewModel = viewModel(
+        factory = LocationSelectionViewModel.Factory
+    )
 
     NavHost(
         navController = navController,
@@ -84,27 +96,45 @@ fun MainScreen() {
             HomeScreen(navController)
         }
         composable("booking") {
-            BookingScreen(navController)
+            BookingScreen(navController, viewModel = viewModel)
         }
         composable("searchLocation") {
             SearchLocationScreen(navController)
         }
         composable("locationSelection") {
-            LocationSelectionScreen(navController)
+            LocationSelectionScreen(navController, viewModel = viewModel)
         }
         composable("driver") {
             DriverScreen()
         }
         composable(
-            "booking?pickup_lat={pickup_lat}&pickup_lng={pickup_lng}&drop_lat={drop_lat}&drop_lng={drop_lng}",
+            "booking?type={type}&pickup_lat={pickup_lat}&pickup_lng={pickup_lng}&drop_lat={drop_lat}&drop_lng={drop_lng}",
             arguments = listOf(
-                navArgument("pickup_lat") { type = NavType.FloatType },
-                navArgument("pickup_lng") { type = NavType.FloatType },
-                navArgument("drop_lat") { type = NavType.FloatType },
-                navArgument("drop_lng") { type = NavType.FloatType }
+                navArgument("type") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+                navArgument("pickup_lat") {
+                    type = NavType.FloatType
+                    defaultValue = 0f
+                },
+                navArgument("pickup_lng") {
+                    type = NavType.FloatType
+                    defaultValue = 0f
+                },
+                navArgument("drop_lat") {
+                    type = NavType.FloatType
+                    defaultValue = 0f
+                },
+                navArgument("drop_lng") {
+                    type = NavType.FloatType
+                    defaultValue = 0f
+                }
             )
         ) { backStackEntry ->
             val args = backStackEntry.arguments
+            val type = args?.getString("type")
             val pickupLat = args?.getFloat("pickup_lat") ?: 0f
             val pickupLng = args?.getFloat("pickup_lng") ?: 0f
             val dropLat = args?.getFloat("drop_lat") ?: 0f
@@ -112,8 +142,12 @@ fun MainScreen() {
 
             BookingScreen(
                 navController = navController,
-                initialPickup = LatLng(pickupLat.toDouble(), pickupLng.toDouble()),
-                initialDropoff = LatLng(dropLat.toDouble(), dropLng.toDouble())
+                initialPickup = if (pickupLat != 0f && pickupLng != 0f)
+                    LatLng(pickupLat.toDouble(), pickupLng.toDouble()) else null,
+                initialDropoff = if (dropLat != 0f && dropLng != 0f)
+                    LatLng(dropLat.toDouble(), dropLng.toDouble()) else null,
+                locationType = type,
+                viewModel = viewModel
             )
         }
     }
@@ -121,7 +155,7 @@ fun MainScreen() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(navController: NavHostController) {
+fun HomeScreen(navController: NavController) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -162,7 +196,7 @@ fun HomeScreen(navController: NavHostController) {
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
-                    Firebase.auth.signOut()
+                    FirebaseAuth.getInstance().signOut()
                     navController.navigate("auth") {
                         popUpTo("home") { inclusive = true }
                     }

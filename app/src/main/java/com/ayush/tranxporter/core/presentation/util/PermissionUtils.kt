@@ -13,6 +13,7 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import com.google.android.gms.maps.model.LatLng  // Use this instead of com.google.type.LatLng
+import kotlinx.coroutines.launch
 
 object PermissionUtils {
     // Permission definitions
@@ -96,6 +97,14 @@ object PermissionUtils {
                 Log.e("Geocoder", "Error getting address", e)
                 "Current Location"
             }
+        }
+    }
+
+    // Function to be called from button click
+    fun getAddressFromLocationFromButton(context: Context, latLng: LatLng, onAddressReceived: (String) -> Unit) {
+        kotlinx.coroutines.MainScope().launch {
+            val address = getAddressFromLocation(context, latLng)
+            onAddressReceived(address)
         }
     }
 }
