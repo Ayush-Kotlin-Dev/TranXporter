@@ -58,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -73,62 +74,48 @@ import kotlinx.coroutines.tasks.await
 enum class TextFieldType {
     PICKUP, DROP, NONE
 }
-// LocationSelectionScreen Composable
+
+data class LocationScreenState(
+    val searchQuery: String = "",
+    val pickupSearchQuery: String = "",
+    val predictions: List<PlacePrediction> = emptyList(),
+    val isSearching: Boolean = false,
+    val currentLocation: LatLng? = null,
+    val currentAddress: String = "Location permission required",
+    val hasLocationPermission: Boolean = false,
+    val showPermissionDialog: Boolean = false,
+    val activeTextField: TextFieldType = TextFieldType.NONE,
+    val isPickupFieldActive: Boolean = false,
+    val hasInitializedLocation: Boolean = false
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LocationSelectionScreen(navController: NavHostController,viewModel: LocationSelectionViewModel) {
+fun LocationSelectionScreen(
+    navController: NavHostController,
+    viewModel: LocationSelectionViewModel
+) {
     val context = LocalContext.current
-    var searchQuery by remember { mutableStateOf("") }
-    var predictions by remember { mutableStateOf<List<PlacePrediction>>(emptyList()) }
-    var isSearching by remember { mutableStateOf(false) }
-    var currentLocation by remember { mutableStateOf<LatLng?>(null) }
-    var currentAddress by remember { mutableStateOf<String>("Location permission required") }
-    var hasLocationPermission by remember {
-        mutableStateOf(PermissionUtils.checkLocationPermission(context))
+    var state by remember {
+        mutableStateOf(
+            LocationScreenState(
+                hasLocationPermission = PermissionUtils.checkLocationPermission(context)
+            )
+        )
     }
-    var showPermissionDialog by remember { mutableStateOf(false) }
-    var activeTextField by remember { mutableStateOf<TextFieldType>(TextFieldType.NONE) }
-    var pickupSearchQuery by remember { mutableStateOf("") }
-    var isPickupFieldActive by remember { mutableStateOf(false) }
 
-    // Permission launcher
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        hasLocationPermission = isGranted
-        if (isGranted) {
-            currentAddress = "Fetching location..."
-        } else {
-            currentAddress = "Location permission required"
-        }
+        state = state.copy(
+            hasLocationPermission = isGranted,
+            currentAddress = if (isGranted) "Fetching location..." else "Location permission required"
+        )
     }
 
-    // Add this state to track initial location setup
-    var hasInitializedLocation by remember { mutableStateOf(false) }
-
-// Modify the LaunchedEffect
-    LaunchedEffect(hasLocationPermission) {
-        if (hasLocationPermission && !hasInitializedLocation && viewModel.pickupLocation == null) {
-            PermissionUtils.getCurrentLocation(context)?.let { location ->
-                currentLocation = location
-                val address = getAddressFromLocation(context, currentLocation!!)
-                viewModel.updateCurrentLocation(location, address)
-                currentAddress = PermissionUtils.getAddressFromLocation(context, location)
-                // If pickup isn't set yet, set it as current location
-                if (viewModel.pickupLocation == null) {
-                    viewModel.setPickupLocation(location, currentAddress)
-                }
-                hasInitializedLocation = true
-            } ?: run {
-                currentAddress = "Unable to get location"
-            }
-        }
-    }
-
-    // Permission Dialog
-    if (showPermissionDialog) {
+    if (state.showPermissionDialog) {
         AlertDialog(
-            onDismissRequest = { showPermissionDialog = false },
+            onDismissRequest = { state = state.copy(showPermissionDialog = false) },
             title = { Text("Location Permission Required") },
             text = {
                 Text(
@@ -139,7 +126,7 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showPermissionDialog = false
+                        state = state.copy(showPermissionDialog = false)
                         locationPermissionLauncher.launch(PermissionUtils.LOCATION_PERMISSION)
                     }
                 ) {
@@ -147,14 +134,15 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showPermissionDialog = false }) {
+                TextButton(
+                    onClick = { state = state.copy(showPermissionDialog = false) }
+                ) {
                     Text("Cancel")
                 }
             }
         )
     }
 
-    // Get current location and address immediately
     LaunchedEffect(Unit) {
         val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         try {
@@ -163,27 +151,60 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                 val location = fusedLocationClient.lastLocation.await()
                 location?.let {
                     val latLng = LatLng(it.latitude, it.longitude)
-                    currentLocation = latLng
-                    // Get address
-                    currentAddress = getAddressFromLocation(context, latLng)
+                    val address = getAddressFromLocation(context, latLng)
+                    state = state.copy(
+                        currentLocation = latLng,
+                        currentAddress = address
+                    )
                 }
             }
         } catch (e: Exception) {
             Log.e("Location", "Error getting location", e)
-            currentAddress = "Unable to get location"
+            state = state.copy(currentAddress = "Unable to get location")
         }
     }
-    val scope = rememberCoroutineScope()
-    // Search predictions
-    LaunchedEffect(searchQuery, pickupSearchQuery) {
-        if ((activeTextField == TextFieldType.PICKUP && pickupSearchQuery.length >= 2) ||
-            (activeTextField == TextFieldType.DROP && searchQuery.length >= 2)) {
-            isSearching = true
-            val queryToUse = if (activeTextField == TextFieldType.PICKUP) pickupSearchQuery else searchQuery
-            val results = searchPlaces(queryToUse, context, scope) {
-                predictions = it
+
+    LaunchedEffect(state.hasLocationPermission) {
+        if (state.hasLocationPermission && !state.hasInitializedLocation && viewModel.pickupLocation == null) {
+            PermissionUtils.getCurrentLocation(context)?.let { location ->
+                val address = getAddressFromLocation(context, location)
+                viewModel.updateCurrentLocation(location, address)
+                state = state.copy(
+                    currentLocation = location,
+                    currentAddress = PermissionUtils.getAddressFromLocation(context, location),
+                    hasInitializedLocation = true
+                )
+                if (viewModel.pickupLocation == null) {
+                    viewModel.setPickupLocation(location, state.currentAddress)
+                }
+            } ?: run {
+                state = state.copy(currentAddress = "Unable to get location")
             }
-            isSearching = false
+        }
+    }
+
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(state.searchQuery, state.pickupSearchQuery) {
+        if ((state.activeTextField == TextFieldType.PICKUP && state.pickupSearchQuery.length >= 2) ||
+            (state.activeTextField == TextFieldType.DROP && state.searchQuery.length >= 2)) {
+            state = state.copy(isSearching = true)
+            val queryToUse = if (state.activeTextField == TextFieldType.PICKUP) state.pickupSearchQuery else state.searchQuery
+            val results = searchPlaces(queryToUse, context, scope) {
+                state = state.copy(predictions = it, isSearching = false)
+            }
+        }
+    }
+
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(state.activeTextField) {
+        when (state.activeTextField) {
+            TextFieldType.PICKUP, TextFieldType.DROP -> {
+                keyboardController?.show()
+            }
+            TextFieldType.NONE -> {
+                keyboardController?.hide()
+            }
         }
     }
 
@@ -221,7 +242,6 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                 .background(MaterialTheme.colorScheme.background)
                 .padding(padding)
         ) {
-            // Location Selection Card
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -237,25 +257,22 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                 Column(
                     modifier = Modifier.padding(16.dp)
                 ) {
-                    // Pickup Location Row
-                    // Add this at the top with other state declarations
                     val pickupInteractionSource = remember { MutableInteractionSource() }
 
-// Then update the TextField
                     TextField(
-                        value = if (isPickupFieldActive) pickupSearchQuery else viewModel.pickupLocation?.address ?: currentAddress,
+                        value = if (state.isPickupFieldActive) state.pickupSearchQuery else viewModel.pickupLocation?.address ?: state.currentAddress,
                         onValueChange = {
-                            pickupSearchQuery = it
-                            activeTextField = TextFieldType.PICKUP
+                            state = state.copy(pickupSearchQuery = it)
+                            state = state.copy(activeTextField = TextFieldType.PICKUP)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp)
                             .onFocusChanged { focusState ->
                                 if (focusState.isFocused) {
-                                    isPickupFieldActive = true
-                                    pickupSearchQuery = ""
-                                    activeTextField = TextFieldType.PICKUP
+                                    state = state.copy(isPickupFieldActive = true)
+                                    state = state.copy(pickupSearchQuery = "")
+                                    state = state.copy(activeTextField = TextFieldType.PICKUP)
                                 }
                             },
                         placeholder = {
@@ -301,15 +318,14 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                             .fillMaxWidth()
                     )
 
-                    // Drop Location TextField
                     TextField(
-                        value = if (activeTextField == TextFieldType.DROP)
-                            searchQuery
+                        value = if (state.activeTextField == TextFieldType.DROP)
+                            state.searchQuery
                         else
-                            viewModel.dropLocation?.address ?: "",  // Display the drop location from ViewModel
+                            viewModel.dropLocation?.address ?: "",  
                         onValueChange = {
-                            searchQuery = it
-                            activeTextField = TextFieldType.DROP
+                            state = state.copy(searchQuery = it)
+                            state = state.copy(activeTextField = TextFieldType.DROP)
                         },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -349,8 +365,7 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                 }
             }
 
-            // Search Progress Indicator
-            if (isSearching) {
+            if (state.isSearching) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -365,18 +380,14 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                 }
             }
 
-            // Select on Map Button
             OutlinedButton(
                 onClick = {
-                    // Navigate to BookingScreen with the appropriate type parameter
                     navController.navigate(
-                        "booking?type=${activeTextField.name.lowercase()}" +
-                                // If pickup location exists, pass it as parameters
+                        "booking?type=${state.activeTextField.name.lowercase()}" +
                                 (viewModel.pickupLocation?.let { pickup ->
                                     "&pickup_lat=${pickup.latLng.latitude}" +
                                             "&pickup_lng=${pickup.latLng.longitude}"
                                 } ?: "") +
-                                // If drop location exists, pass it as parameters
                                 (viewModel.dropLocation?.let { drop ->
                                     "&drop_lat=${drop.latLng.latitude}" +
                                             "&drop_lng=${drop.latLng.longitude}"
@@ -398,23 +409,23 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                 Text("Select on map")
             }
 
-            // Predictions List
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                items(predictions) { prediction ->
+                items(state.predictions) { prediction ->
                     LocationSuggestionItem(
                         prediction = prediction,
                         onItemClick = {
                             val latLng = LatLng(prediction.latitude, prediction.longitude)
-                            if (activeTextField == TextFieldType.PICKUP) {
+                            if (state.activeTextField == TextFieldType.PICKUP) {
                                 viewModel.setPickupLocation(latLng, prediction.mainText)
-                                isPickupFieldActive = false
-                                pickupSearchQuery = ""
+                                state = state.copy(
+                                    isPickupFieldActive = false,
+                                    pickupSearchQuery = ""
+                                )
                             } else {
                                 viewModel.setDropLocation(latLng, prediction.mainText)
-                                // When navigating to booking screen
                                 if (viewModel.pickupLocation != null) {
                                     navController.navigate(
                                         "booking?" +
@@ -423,7 +434,6 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
                                                 "drop_lat=${latLng.latitude}&" +
                                                 "drop_lng=${latLng.longitude}"
                                     ) {
-                                        // Add this to prevent going back to location selection
                                         popUpTo("location_selection") { inclusive = true }
                                     }
                                 }
@@ -436,7 +446,6 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
     }
 }
 
-// LocationSuggestionItem Composable
 @Composable
 private fun LocationSuggestionItem(
     prediction: PlacePrediction,
@@ -486,56 +495,6 @@ private fun LocationSuggestionItem(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun RecentLocationItem(
-    prediction: PlacePrediction,
-    onItemClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onItemClick)
-            .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-                    shape = CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Default.LocationOn,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = prediction.mainText,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Text(
-                text = prediction.secondaryText,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        IconButton(onClick = { /* Handle favorite */ }) {
-            Icon(
-                Icons.Default.FavoriteBorder,
-                contentDescription = "Favorite",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
