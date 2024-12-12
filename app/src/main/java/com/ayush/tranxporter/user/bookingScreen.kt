@@ -122,8 +122,8 @@ fun BookingScreen(
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
     // Initialize with passed locations
-    var pickupLocation = viewModel.pickupLocation?.latLng ?: initialPickup
-    var dropOffLocation = viewModel.dropLocation?.latLng ?: initialDropoff
+    var pickupLocation = viewModel.pickupLocation?.latLng
+    var dropOffLocation = viewModel.dropLocation?.latLng
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
     }
@@ -133,25 +133,32 @@ fun BookingScreen(
     val scope = rememberCoroutineScope()
 // Initialize route if both locations are provided
     LaunchedEffect(Unit) {
-        if (initialPickup != null && initialDropoff != null && viewModel.pickupLocation == null) {
-            pickupLocation = initialPickup
-            dropOffLocation = initialDropoff
+        when (locationType?.lowercase()) {
+            "pickup" -> {
+                // Do nothing, wait for map selection
+            }
+            "drop" -> {
+                // Do nothing, wait for map selection
+            }
+            else -> {
+                // Only initialize if we're coming from deep link or direct navigation
+                if (initialPickup != null && initialDropoff != null) {
+                    try {
+                        val points = getRoutePoints(initialPickup, initialDropoff)
+                        routePoints = points
+                        travelTime = getTravelTime(initialPickup, initialDropoff)
 
-            try {
-                val points = getRoutePoints(initialPickup, initialDropoff)
-                routePoints = points
-                travelTime = getTravelTime(initialPickup, initialDropoff)
-
-                // Adjust camera to show both locations
-                val bounds = LatLngBounds.builder()
-                    .include(initialPickup)
-                    .include(initialDropoff)
-                    .build()
-                cameraPositionState.animate(
-                    CameraUpdateFactory.newLatLngBounds(bounds, 100)
-                )
-            } catch (e: Exception) {
-                Log.e("Route", "Failed to initialize route", e)
+                        val bounds = LatLngBounds.builder()
+                            .include(initialPickup)
+                            .include(initialDropoff)
+                            .build()
+                        cameraPositionState.animate(
+                            CameraUpdateFactory.newLatLngBounds(bounds, 100)
+                        )
+                    } catch (e: Exception) {
+                        Log.e("Route", "Failed to initialize route", e)
+                    }
+                }
             }
         }
     }
@@ -171,10 +178,12 @@ fun BookingScreen(
             travelTime = getTravelTime(pickupLocation!!, dropOffLocation!!)
         }
     }
+    // Update the current location effect
     LaunchedEffect(permissionState.allPermissionsGranted) {
         if (permissionState.allPermissionsGranted &&
             viewModel.isUsingCurrentLocation &&
-            viewModel.pickupLocation == null) {  // Add this condition
+            viewModel.pickupLocation == null &&
+            locationType?.lowercase() != "drop") {  // Don't update if selecting drop location
             fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
                 location?.let {
                     currentLocation = LatLng(it.latitude, it.longitude)
@@ -274,11 +283,12 @@ fun BookingScreen(
                                     navController.navigateUp()
                                 }
                                 else -> {
+                                    // Normal booking flow
                                     when {
-                                        pickupLocation == null -> {
+                                        viewModel.pickupLocation == null -> {
                                             viewModel.setPickupLocation(latLng, address)
                                         }
-                                        dropOffLocation == null -> {
+                                        viewModel.dropLocation == null -> {
                                             viewModel.setDropLocation(latLng, address)
                                         }
                                     }

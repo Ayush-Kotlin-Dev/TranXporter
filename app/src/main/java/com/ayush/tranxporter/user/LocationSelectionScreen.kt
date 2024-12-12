@@ -276,7 +276,10 @@ fun LocationSelectionScreen(navController: NavHostController,viewModel: Location
 
                     // Drop Location TextField
                     TextField(
-                        value = searchQuery,
+                        value = if (activeTextField == TextFieldType.DROP)
+                            searchQuery
+                        else
+                            viewModel.dropLocation?.address ?: "",  // Display the drop location from ViewModel
                         onValueChange = {
                             searchQuery = it
                             activeTextField = TextFieldType.DROP

@@ -30,7 +30,8 @@ class LocationSelectionViewModel : ViewModel() {
 
     fun setPickupLocation(latLng: LatLng, address: String) {
         _pickupLocation.value = LocationDetails(latLng, address)
-        _isUsingCurrentLocation.value = false // Set to false when user manually selects location
+        _isUsingCurrentLocation.value = false
+        hasSetInitialLocation = true  // Add this line
         Log.d("LocationSelectionViewModel", "setPickupLocation: $latLng, $address")
     }
 
@@ -41,8 +42,8 @@ class LocationSelectionViewModel : ViewModel() {
     }
 
     fun updateCurrentLocation(location: LatLng, address: String) {
-        // Only update if we haven't set any location yet
-        if (!hasSetInitialLocation) {
+        // Only update if we're using current location and haven't set a pickup location
+        if (_isUsingCurrentLocation.value && _pickupLocation.value == null && !hasSetInitialLocation) {
             _pickupLocation.value = LocationDetails(location, address)
             hasSetInitialLocation = true
         }
