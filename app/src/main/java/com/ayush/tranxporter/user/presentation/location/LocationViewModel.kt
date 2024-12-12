@@ -28,16 +28,24 @@ class LocationSelectionViewModel : ViewModel() {
     }
 
 
-    fun setPickupLocation(latLng: LatLng, address: String) {
-        _pickupLocation.value = LocationDetails(latLng, address)
+
+    fun setPickupLocation(latLng: LatLng?, address: String) {
+        _pickupLocation.value = if (latLng != null && address.isNotEmpty()) {
+            LocationDetails(latLng, address)
+        } else {
+            null
+        }
         _isUsingCurrentLocation.value = false
-        hasSetInitialLocation = true  // Add this line
+        hasSetInitialLocation = true
         Log.d("LocationSelectionViewModel", "setPickupLocation: $latLng, $address")
     }
 
-    fun setDropLocation(latLng: LatLng, address: String) {
-        _dropLocation.value = LocationDetails(latLng, address)
-        _isUsingCurrentLocation.value = false // Set to false when user manually selects location
+    fun setDropLocation(latLng: LatLng?, address: String) {
+        _dropLocation.value = if (latLng != null && address.isNotEmpty()) {
+            LocationDetails(latLng, address)
+        } else {
+            null
+        }
         Log.d("LocationSelectionViewModel", "setDropLocation: $latLng, $address")
     }
 

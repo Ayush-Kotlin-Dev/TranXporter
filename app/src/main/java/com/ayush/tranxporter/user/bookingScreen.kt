@@ -121,9 +121,13 @@ fun BookingScreen(
     val cameraPositionState = rememberCameraPositionState()
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
-    // Initialize with passed locations
-    var pickupLocation = viewModel.pickupLocation?.latLng
-    var dropOffLocation = viewModel.dropLocation?.latLng
+
+    var pickupLocation by remember(viewModel.pickupLocation) {
+        mutableStateOf(viewModel.pickupLocation?.latLng)
+    }
+    var dropOffLocation by remember(viewModel.dropLocation) {
+        mutableStateOf(viewModel.dropLocation?.latLng)
+    }
     val fusedLocationClient = remember {
         LocationServices.getFusedLocationProviderClient(context)
     }
@@ -303,6 +307,7 @@ fun BookingScreen(
                             title = "Pickup Location",
                             snippet = "Tap to change",
                             onInfoWindowClick = {
+                                viewModel.setPickupLocation(null, "") // Add this method to ViewModel
                                 pickupLocation = null
                             }
                         )
@@ -313,6 +318,7 @@ fun BookingScreen(
                             title = "Drop-off Location",
                             snippet = "Tap to change",
                             onInfoWindowClick = {
+                                viewModel.setDropLocation(null, "") // Add this method to ViewModel
                                 dropOffLocation = null
                             }
                         )
