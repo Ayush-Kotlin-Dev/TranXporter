@@ -35,6 +35,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import cafe.adriel.voyager.navigator.Navigator
 import com.ayush.tranxporter.auth.presentation.login.AuthScreen
+import com.ayush.tranxporter.auth.presentation.service_selection.ServiceSelectionScreen
+import com.ayush.tranxporter.auth.presentation.service_selection.UserDetailsScreen
+import com.ayush.tranxporter.core.components.UserType
 import com.ayush.tranxporter.core.domain.model.AppState
 import com.ayush.tranxporter.core.presentation.onboard.OnboardingScreen
 import com.ayush.tranxporter.driver.DriverScreen
@@ -82,11 +85,34 @@ fun MainScreen() {
 
     NavHost(
         navController = navController,
-        startDestination = if (currentUser != null) "home" else "auth"
+        startDestination = if (currentUser != null) "home" else "service_selection"
     ) {
         composable("auth") {
-            Navigator(
-                AuthScreen({ navController.navigate("home") })
+            Navigator(AuthScreen {
+                // Navigate to service selection after auth
+                navController.navigate("service_selection")
+            })
+        }
+        composable("service_selection") {
+            ServiceSelectionScreen { userType ->
+                navController.navigate("user_details/${userType.name}")
+            }
+        }
+        composable(
+            "user_details/{type}",
+            arguments = listOf(navArgument("type") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userType = UserType.valueOf(
+                backStackEntry.arguments?.getString("type") ?: UserType.CONSUMER.name
+            )
+            UserDetailsScreen(
+                userType = userType,
+                onDetailsSubmitted = {
+                    // Navigate to home screen after details are submitted
+                    navController.navigate("home") {
+                        popUpTo("auth") { inclusive = true }
+                    }
+                }
             )
         }
         composable("home") {
@@ -195,7 +221,7 @@ fun HomeScreen(navController: NavController) {
                 onClick = {
                     FirebaseAuth.getInstance().signOut()
                     navController.navigate("auth") {
-                        popUpTo("home") { inclusive = true }
+                        popUpTo(0) { inclusive = true }
                     }
                 },
                 modifier = Modifier

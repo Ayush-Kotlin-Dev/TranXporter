@@ -58,6 +58,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -66,6 +67,7 @@ import androidx.navigation.NavHostController
 import com.ayush.tranxporter.R
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils.getAddressFromLocation
 import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
+import com.ayush.tranxporter.utils.VibratorService
 import com.ayush.tranxporter.utils.calculateFare
 import com.ayush.tranxporter.utils.getDrivingDistance
 import com.ayush.tranxporter.utils.getRoutePoints
@@ -133,9 +135,11 @@ fun BookingScreen(
             "pickup" -> {
                 // Do nothing, wait for map selection
             }
+
             "drop" -> {
                 // Do nothing, wait for map selection
             }
+
             else -> {
                 // Only initialize if we're coming from deep link or direct navigation
                 if (initialPickup != null && initialDropoff != null) {
@@ -201,8 +205,8 @@ fun BookingScreen(
             }
         }
     }
-    
-    
+
+
 
     LaunchedEffect(pickupLocation, dropOffLocation) {
         if (pickupLocation != null && dropOffLocation != null) {
@@ -214,7 +218,8 @@ fun BookingScreen(
         if (permissionState.allPermissionsGranted &&
             viewModel.isUsingCurrentLocation &&
             viewModel.pickupLocation == null &&
-            locationType?.lowercase() != "drop") {  // Don't update if selecting drop location
+            locationType?.lowercase() != "drop"
+        ) {  // Don't update if selecting drop location
             fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
                 location?.let {
                     currentLocation = LatLng(it.latitude, it.longitude)
@@ -309,16 +314,19 @@ fun BookingScreen(
                                     viewModel.setPickupLocation(latLng, address)
                                     navController.navigateUp()
                                 }
+
                                 "drop" -> {
                                     viewModel.setDropLocation(latLng, address)
                                     navController.navigateUp()
                                 }
+
                                 else -> {
                                     // Normal booking flow
                                     when {
                                         viewModel.pickupLocation == null -> {
                                             viewModel.setPickupLocation(latLng, address)
                                         }
+
                                         viewModel.dropLocation == null -> {
                                             viewModel.setDropLocation(latLng, address)
                                         }
@@ -334,7 +342,10 @@ fun BookingScreen(
                             title = "Pickup Location",
                             snippet = "Tap to change",
                             onInfoWindowClick = {
-                                viewModel.setPickupLocation(null, "") // Add this method to ViewModel
+                                viewModel.setPickupLocation(
+                                    null,
+                                    ""
+                                ) // Add this method to ViewModel
                                 pickupLocation = null
                             }
                         )
@@ -366,7 +377,10 @@ fun BookingScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(end = 16.dp, bottom = 96.dp),  // Adjust bottom padding based on your UI
+                        .padding(
+                            end = 16.dp,
+                            bottom = 96.dp
+                        ),  // Adjust bottom padding based on your UI
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     FloatingActionButton(
@@ -495,7 +509,8 @@ fun BookingScreen(
                                 vehicle = "Small Truck",
                                 icon = R.drawable.pickup_truck,
                                 time = travelTime ?: "Calculating...",
-                                price = smallTruckFare?.let { "₹${it.toInt()}" } ?: "Calculating...",
+                                price = smallTruckFare?.let { "₹${it.toInt()}" }
+                                    ?: "Calculating...",
                                 isSelected = true
                             )
 
@@ -510,7 +525,8 @@ fun BookingScreen(
                                 vehicle = "Large Truck",
                                 icon = R.drawable.truck,
                                 time = travelTime ?: "Calculating...",
-                                price = largeTruckFare?.let { "₹${it.toInt()}" } ?: "Calculating...",
+                                price = largeTruckFare?.let { "₹${it.toInt()}" }
+                                    ?: "Calculating...",
                                 isSelected = false
                             )
 
@@ -534,13 +550,14 @@ fun BookingScreen(
                                 )
                             }
                             Spacer(modifier = Modifier.weight(1f))  // Push button to bottom
-
-                            // Book Button - Removed Clear button to match reference
                             Button(
-                                onClick = { /* Handle booking */ },
+                                onClick = {
+                                    VibratorService.vibrate(context , VibratorService.VibrationPattern.Success)
+                                    // Handle booking
+                                },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(48.dp),  // Slightly reduced height
+                                    .height(48.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = MaterialTheme.colorScheme.primary
                                 ),
@@ -570,11 +587,14 @@ private fun VehicleOption(
     price: String,
     isSelected: Boolean
 ) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(72.dp)
-            .clickable { /* Handle selection */ }
+            .clickable {
+                VibratorService.vibrate(context,VibratorService.VibrationPattern.Click)
+            }
             .border(
                 width = if (isSelected) 2.dp else 0.dp,
                 color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -641,7 +661,10 @@ private fun VehicleOption(
                         ) {
                             Text(
                                 "FASTEST",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),  // Reduced padding
+                                modifier = Modifier.padding(
+                                    horizontal = 6.dp,
+                                    vertical = 2.dp
+                                ),  // Reduced padding
                                 style = MaterialTheme.typography.labelSmall,
                                 fontSize = 10.sp,  // Explicitly set smaller font size
                                 color = Color.White,
@@ -695,6 +718,7 @@ private fun VehicleOption(
         }
     }
 }
+
 // Updated PaymentOption composable
 @Composable
 private fun PaymentOption(
@@ -730,6 +754,7 @@ private fun PaymentOption(
         )
     }
 }
+
 enum class VehicleType {
     SMALL_TRUCK,
     LARGE_TRUCK
