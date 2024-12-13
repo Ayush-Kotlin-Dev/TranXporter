@@ -20,32 +20,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.ayush.tranxporter.core.components.UserType
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.ImeAction
@@ -54,14 +49,17 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
 import com.ayush.tranxporter.R
+import com.ayush.tranxporter.core.components.UserType
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun UserDetailsScreen(
     userType: UserType,
     onDetailsSubmitted: () -> Unit,
-    viewModel: UserDetailsViewModel = viewModel()
 ) {
+    val viewModel = koinViewModel<UserDetailsViewModel>()
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
 
@@ -132,7 +130,7 @@ fun UserDetailsScreen(
         ) {
             FormProgressIndicator(
                 currentStep = state.completedFields,
-                totalSteps = if (userType == UserType.TRUCK_OWNER) 5 else 3
+                totalSteps = if (userType == UserType.TRUCK_OWNER) 7 else 4
             )
 
             Text(
@@ -226,6 +224,94 @@ fun UserDetailsScreen(
                     ),
                     focusRequester = licenseFocus
                 )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                val vehicleTypes = listOf("Truck", "Van", "Pickup", "Other")
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Vehicle Type",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(start = 16.dp, bottom = 8.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // First row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            vehicleTypes.take(2).forEach { type ->
+                                Button(
+                                    onClick = {
+                                        viewModel.updateVehicleType(type)
+                                        if (type != "Other") {
+                                            viewModel.updateCustomVehicleType("")
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = if (state.vehicleType == type) {
+                                        MaterialTheme.colorScheme.primary.let { primaryColor ->
+                                            ButtonDefaults.buttonColors(containerColor = primaryColor)
+                                        }
+                                    } else {
+                                        ButtonDefaults.outlinedButtonColors()
+                                    }
+                                ) {
+                                    Text(text = type)
+                                }
+                            }
+                        }
+
+                        // Second row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            vehicleTypes.drop(2).forEach { type ->
+                                Button(
+                                    onClick = {
+                                        viewModel.updateVehicleType(type)
+                                        if (type != "Other") {
+                                            viewModel.updateCustomVehicleType("")
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = if (state.vehicleType == type) {
+                                        MaterialTheme.colorScheme.primary.let { primaryColor ->
+                                            ButtonDefaults.buttonColors(containerColor = primaryColor)
+                                        }
+                                    } else {
+                                        ButtonDefaults.outlinedButtonColors()
+                                    }
+                                ) {
+                                    Text(text = type)
+                                }
+                            }
+                        }
+                    }
+                    
+                    AnimatedVisibility(visible = state.vehicleType == "Other") {
+                        FormField(
+                            value = state.customVehicleType,
+                            onValueChange = { viewModel.updateCustomVehicleType(it) },
+                            label = "Specify Vehicle Type",
+                            icon = R.drawable.ic_car,
+                            error = state.customVehicleTypeError,
+                            keyboardOptions = KeyboardOptions(
+                                capitalization = KeyboardCapitalization.Words,
+                                imeAction = ImeAction.Done
+                            ),
+                            modifier = Modifier.padding(top = 16.dp)
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.weight(1f))

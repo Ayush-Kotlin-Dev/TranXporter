@@ -146,6 +146,15 @@ class AuthViewModel(
                     )
                 }
             }
+
+            is AuthEvent.ShowPhoneInput -> {
+                _state.update {
+                    it.copy(
+                        showOtpInput = false,
+                        otpState = OtpState()
+                    )
+                }
+            }
         }
     }
 

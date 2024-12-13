@@ -6,20 +6,48 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
-import com.google.android.gms.auth.api.Auth
 import org.koin.androidx.compose.koinViewModel
 
 data class AuthScreen(
@@ -36,17 +64,15 @@ data class AuthScreen(
         val focusManager = LocalFocusManager.current
         val keyboardManager = LocalSoftwareKeyboardController.current
 
-        // Handle focus changes
         LaunchedEffect(state.otpState.focusedIndex) {
             state.otpState.focusedIndex?.let { index ->
                 focusRequesters.getOrNull(index)?.requestFocus()
             }
         }
 
-        // Handle keyboard and focus when OTP is complete
         LaunchedEffect(state.otpState.code, keyboardManager) {
             val allNumbersEntered = state.otpState.code.none { it == null }
-            if(allNumbersEntered) {
+            if (allNumbersEntered) {
                 focusRequesters.forEach { it.freeFocus() }
                 focusManager.clearFocus()
                 keyboardManager?.hide()
@@ -63,15 +89,38 @@ data class AuthScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp)
+                .background(MaterialTheme.colorScheme.background)
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.Start
             ) {
+                Spacer(modifier = Modifier.height(48.dp))
+
+                // Header Section
+                if (!state.showOtpInput) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "Welcome",
+                            style = MaterialTheme.typography.headlineLarge,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "Enter your mobile number to continue",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(48.dp))
+
+                // Phone Input Section
                 AnimatedVisibility(
                     visible = !state.showOtpInput,
                     enter = fadeIn() + slideInHorizontally(),
@@ -81,9 +130,15 @@ data class AuthScreen(
                         phoneNumber = state.phoneNumber,
                         isValid = state.isPhoneValid,
                         onPhoneNumberChange = { viewModel.onEvent(AuthEvent.OnPhoneNumberChange(it)) },
-                        onSubmit = { viewModel.onEvent(AuthEvent.OnSubmitPhone, activity) }
+                        onSubmit = {
+                            keyboardManager?.hide()
+                            focusManager.clearFocus()
+                            viewModel.onEvent(AuthEvent.OnSubmitPhone, activity)
+                        }
                     )
                 }
+
+                // OTP Input Section
                 AnimatedVisibility(
                     visible = state.showOtpInput,
                     enter = fadeIn() + slideInHorizontally(),
@@ -98,64 +153,111 @@ data class AuthScreen(
                 }
             }
 
+            // Loading Indicator
             if (state.isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
 
+            // Error Snackbar
             state.error?.let { error ->
                 Snackbar(
-                    modifier = Modifier.align(Alignment.BottomCenter)
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .align(Alignment.BottomCenter),
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
                 ) {
                     Text(error)
                 }
             }
         }
     }
-}
-@Composable
-private fun PhoneNumberInput(
-    phoneNumber: String,
-    isValid: Boolean,
-    onPhoneNumberChange: (String) -> Unit,
-    onSubmit: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+
+    @Composable
+    private fun PhoneNumberInput(
+        phoneNumber: String,
+        isValid: Boolean,
+        onPhoneNumberChange: (String) -> Unit,
+        onSubmit: () -> Unit
     ) {
-        Text(
-            text = "Enter your phone number",
-            style = MaterialTheme.typography.headlineSmall
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            Text(
-                text = "+91",
-                style = MaterialTheme.typography.bodyLarge
-            )
-            OutlinedTextField(
-                value = phoneNumber,
-                onValueChange = onPhoneNumberChange,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Phone
-                ),
-                singleLine = true,
-                modifier = Modifier.weight(1f)
-            )
-        }
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "+91",
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            fontWeight = FontWeight.Medium
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
 
-        Button(
-            onClick = onSubmit,
-            enabled = isValid,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Send Code")
+                    Divider(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(24.dp),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                    )
+
+                    OutlinedTextField(
+                        value = phoneNumber,
+                        onValueChange = { if (it.length <= 10) onPhoneNumberChange(it) },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Phone,
+                            imeAction = ImeAction.Done
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onDone = { if (isValid) onSubmit() }
+                        ),
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedBorderColor = Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                }
+            }
+
+            Button(
+                onClick = onSubmit,
+                enabled = isValid,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    "Continue",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
         }
     }
 }
@@ -172,17 +274,34 @@ fun OtpInput(
             .fillMaxWidth()
             .padding(vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)  // Space between elements
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             text = "Enter verification code",
             style = MaterialTheme.typography.headlineSmall
         )
 
-        Text(
-            text = "Code sent to +91 ${state.phoneNumber}",
-            style = MaterialTheme.typography.bodyMedium
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "+91 ${state.phoneNumber}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            TextButton(
+                onClick = { viewModel.onEvent(AuthEvent.ShowPhoneInput) },
+                modifier = Modifier.padding(start = 8.dp)
+            ) {
+                Text(
+                    text = "Wrong number?",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
 
         Box(
             modifier = Modifier
@@ -193,9 +312,9 @@ fun OtpInput(
                 state = state.otpState,
                 focusRequesters = focusRequesters,
                 onAction = { action ->
-                    when(action) {
+                    when (action) {
                         is OtpAction.OnEnterNumber -> {
-                            if(action.number != null) {
+                            if (action.number != null) {
                                 focusRequesters[action.index].freeFocus()
                             }
                         }
@@ -215,9 +334,16 @@ fun OtpInput(
                 onClick = { viewModel.onEvent(AuthEvent.OnVerifyOtp) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 8.dp)  // Add some space above button
+                    .height(56.dp)
+                    .padding(top = 8.dp),
+                shape = RoundedCornerShape(12.dp),
             ) {
-                Text("Verify")
+                Text(
+                    "Verify",
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Medium
+                    )
+                )
             }
         }
     }

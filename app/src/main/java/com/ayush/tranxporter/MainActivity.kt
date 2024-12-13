@@ -78,14 +78,13 @@ fun MainScreen() {
     val auth = FirebaseAuth.getInstance()
     val currentUser = auth.currentUser
 
-    // Create an activity-scoped ViewModel
     val viewModel: LocationSelectionViewModel = viewModel(
         factory = LocationSelectionViewModel.Factory
     )
 
     NavHost(
         navController = navController,
-        startDestination = if (currentUser != null) "home" else "service_selection"
+        startDestination = if (currentUser != null) "home" else "auth"
     ) {
         composable("auth") {
             Navigator(AuthScreen {
