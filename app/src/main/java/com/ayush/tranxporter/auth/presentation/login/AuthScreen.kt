@@ -1,12 +1,15 @@
 package com.ayush.tranxporter.auth.presentation.login
 
 import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,14 +20,22 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -35,19 +46,28 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
+import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
 data class AuthScreen(
@@ -91,6 +111,30 @@ data class AuthScreen(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            AnimatedVisibility(
+                visible = state.showOtpInput,
+                enter = fadeIn() + slideInHorizontally(),
+                exit = fadeOut() + slideOutHorizontally()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { viewModel.onEvent(AuthEvent.ShowPhoneInput) }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                    shape = CircleShape
+                                )
+                        )
+                    }
+                }
+            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -134,7 +178,9 @@ data class AuthScreen(
                             keyboardManager?.hide()
                             focusManager.clearFocus()
                             viewModel.onEvent(AuthEvent.OnSubmitPhone, activity)
-                        }
+                        },
+                        keyboardManager = keyboardManager,  // Add this
+                        focusManager = focusManager  // Add this
                     )
                 }
 
@@ -158,6 +204,9 @@ data class AuthScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .clickable {
+                            // Do nothing
+                        }
                         .background(Color.Black.copy(alpha = 0.3f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -167,14 +216,17 @@ data class AuthScreen(
                 }
             }
 
-            // Error Snackbar
             state.error?.let { error ->
+                LaunchedEffect(error) {
+                    delay(3000)
+                    viewModel.onEvent(AuthEvent.DismissError)
+                }
                 Snackbar(
                     modifier = Modifier
                         .padding(16.dp)
                         .align(Alignment.BottomCenter),
                     containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
                 ) {
                     Text(error)
                 }
@@ -187,8 +239,12 @@ data class AuthScreen(
         phoneNumber: String,
         isValid: Boolean,
         onPhoneNumberChange: (String) -> Unit,
-        onSubmit: () -> Unit
+        onSubmit: () -> Unit,
+        keyboardManager: SoftwareKeyboardController?,
+        focusManager: FocusManager
     ) {
+        var termsAccepted by remember { mutableStateOf(false) }
+        val context = LocalContext.current
         Column(
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
@@ -223,7 +279,16 @@ data class AuthScreen(
 
                     OutlinedTextField(
                         value = phoneNumber,
-                        onValueChange = { if (it.length <= 10) onPhoneNumberChange(it) },
+                        onValueChange = { newValue ->
+                            if (newValue.length <= 10) {
+                                onPhoneNumberChange(newValue)
+                                // If length reaches 10, hide keyboard
+                                if (newValue.length == 10) {
+                                    keyboardManager?.hide()
+                                    focusManager.clearFocus()
+                                }
+                            }
+                        },
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Phone,
                             imeAction = ImeAction.Done
@@ -243,9 +308,62 @@ data class AuthScreen(
                 }
             }
 
+            // Terms and Conditions
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.Start
+            ) {
+                Checkbox(
+                    checked = termsAccepted,
+                    onCheckedChange = { termsAccepted = it },
+                    colors = CheckboxDefaults.colors(
+                        checkedColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+
+                val annotatedString = buildAnnotatedString {
+                    append("I agree to the ")
+                    pushStringAnnotation(
+                        tag = "terms",
+                        annotation = "https://www.example.com/terms"
+                    )
+                    withStyle(
+                        style = SpanStyle(
+                            color = MaterialTheme.colorScheme.primary,
+                            textDecoration = TextDecoration.Underline
+                        )
+                    ) {
+                        append("Terms & Conditions")
+                    }
+                    pop()
+                }
+
+                ClickableText(
+                    text = annotatedString,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier.padding(top = 12.dp),
+                    onClick = { offset ->
+                        annotatedString.getStringAnnotations(
+                            tag = "terms",
+                            start = offset,
+                            end = offset
+                        ).firstOrNull()?.let { annotation ->
+                            // Open URL in browser
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(annotation.item))
+                            context.startActivity(intent)
+                        }
+                    }
+                )
+            }
+
             Button(
                 onClick = onSubmit,
-                enabled = isValid,
+                enabled = isValid && termsAccepted,  // Enable only if terms are accepted
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -269,6 +387,17 @@ fun OtpInput(
     onAction: (OtpAction) -> Unit,
     viewModel: AuthViewModel
 ) {
+    var remainingSeconds by remember { mutableStateOf(30) }
+    var canResend by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        while (remainingSeconds > 0) {
+            delay(1000)
+            remainingSeconds--
+        }
+        canResend = true
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -322,6 +451,27 @@ fun OtpInput(
                     }
                     viewModel.onEvent(AuthEvent.OnOtpAction(action))
                 }
+            )
+        }
+
+        if (canResend) {
+            TextButton(
+                onClick = {
+                    viewModel.onEvent(AuthEvent.OnResendOtp)
+                    remainingSeconds = 30
+                    canResend = false
+                }
+            ) {
+                Text(
+                    text = "Resend OTP",
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        } else {
+            Text(
+                text = "Resend OTP in ${remainingSeconds}s",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 

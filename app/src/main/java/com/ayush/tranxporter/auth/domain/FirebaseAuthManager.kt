@@ -75,6 +75,8 @@ class FirebaseAuthManager @Inject constructor(
         }
     }
 
+
+
     fun isUserSignedIn(): Boolean = auth.currentUser != null
 
     fun getCurrentUser(): FirebaseUser? = auth.currentUser

@@ -157,7 +157,7 @@ fun PermissionsPage() {
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
+    ) { _ ->
         // Update the permission state that was just requested
         permissionsState = permissionsState.mapValues { (permission, _) ->
             PermissionUtils.checkPermission(context, permission.permission)

@@ -11,5 +11,5 @@ data class AuthState(
         focusedIndex = null,
         isValid = null
     ),
-    val isAuthenticated: Boolean = false
+    val isAuthenticated: Boolean = false,
 )

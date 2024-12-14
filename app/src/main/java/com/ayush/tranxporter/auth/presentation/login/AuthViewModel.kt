@@ -27,10 +27,12 @@ class AuthViewModel(
         when (event) {
             is AuthEvent.OnPhoneNumberChange -> {
                 if (event.number.length <= 10) {
-                    _state.update { it.copy(
-                        phoneNumber = event.number,
-                        isPhoneValid = event.number.length == 10
-                    ) }
+                    _state.update {
+                        it.copy(
+                            phoneNumber = event.number,
+                            isPhoneValid = event.number.length == 10
+                        )
+                    }
                 }
             }
 
@@ -43,26 +45,32 @@ class AuthViewModel(
                                 phoneNumber = "+91${state.value.phoneNumber}",
                                 activity = activity,
                                 onCodeSent = {
-                                    _state.update { it.copy(
-                                        showOtpInput = true,
-                                        isLoading = false
-                                    ) }
+                                    _state.update {
+                                        it.copy(
+                                            showOtpInput = true,
+                                            isLoading = false
+                                        )
+                                    }
                                 },
                                 onVerificationCompleted = { credential ->
                                     handleCredential(credential)
                                 },
                                 onError = { error ->
-                                    _state.update { it.copy(
-                                        error = error,
-                                        isLoading = false
-                                    ) }
+                                    _state.update {
+                                        it.copy(
+                                            error = error,
+                                            isLoading = false
+                                        )
+                                    }
                                 }
                             )
                         } catch (e: Exception) {
-                            _state.update { it.copy(
-                                error = e.message ?: "Failed to send OTP",
-                                isLoading = false
-                            ) }
+                            _state.update {
+                                it.copy(
+                                    error = e.message ?: "Failed to send OTP",
+                                    isLoading = false
+                                )
+                            }
                         }
                     }
                 }
@@ -71,29 +79,36 @@ class AuthViewModel(
             is AuthEvent.OnOtpAction -> {
                 when (event.action) {
                     is OtpAction.OnChangeFieldFocused -> {
-                        _state.update { it.copy(
-                            otpState = it.otpState.copy(
-                                focusedIndex = event.action.index
+                        _state.update {
+                            it.copy(
+                                otpState = it.otpState.copy(
+                                    focusedIndex = event.action.index
+                                )
                             )
-                        ) }
+                        }
                     }
+
                     is OtpAction.OnEnterNumber -> {
                         enterNumber(event.action.number, event.action.index)
                     }
+
                     OtpAction.OnKeyboardBack -> {
-                        val previousIndex = getPreviousFocusedIndex(state.value.otpState.focusedIndex)
-                        _state.update { it.copy(
-                            otpState = it.otpState.copy(
-                                code = it.otpState.code.mapIndexed { index, number ->
-                                    if(index == previousIndex) {
-                                        null
-                                    } else {
-                                        number
-                                    }
-                                },
-                                focusedIndex = previousIndex
+                        val previousIndex =
+                            getPreviousFocusedIndex(state.value.otpState.focusedIndex)
+                        _state.update {
+                            it.copy(
+                                otpState = it.otpState.copy(
+                                    code = it.otpState.code.mapIndexed { index, number ->
+                                        if (index == previousIndex) {
+                                            null
+                                        } else {
+                                            number
+                                        }
+                                    },
+                                    focusedIndex = previousIndex
+                                )
                             )
-                        ) }
+                        }
                     }
                 }
             }
@@ -106,16 +121,20 @@ class AuthViewModel(
                         authManager.verifyCode(
                             code = otpCode,
                             onSuccess = {
-                                _state.update { it.copy(
-                                    isAuthenticated = true,
-                                    isLoading = false
-                                ) }
+                                _state.update {
+                                    it.copy(
+                                        isAuthenticated = true,
+                                        isLoading = false
+                                    )
+                                }
                             },
                             onError = { error ->
-                                _state.update { it.copy(
-                                    error = error,
-                                    isLoading = false
-                                ) }
+                                _state.update {
+                                    it.copy(
+                                        error = error,
+                                        isLoading = false
+                                    )
+                                }
                             }
                         )
                     }
@@ -129,19 +148,23 @@ class AuthViewModel(
                         phoneNumber = "+91${state.value.phoneNumber}",
                         activity = act,
                         onCodeSent = {
-                            _state.update { it.copy(
-                                isLoading = false,
-                                otpState = OtpState(code = (1..6).map { null })
-                            ) }
+                            _state.update {
+                                it.copy(
+                                    isLoading = false,
+                                    otpState = OtpState(code = (1..6).map { null })
+                                )
+                            }
                         },
                         onVerificationCompleted = { credential ->
                             handleCredential(credential)
                         },
                         onError = { error ->
-                            _state.update { it.copy(
-                                error = error,
-                                isLoading = false
-                            ) }
+                            _state.update {
+                                it.copy(
+                                    error = error,
+                                    isLoading = false
+                                )
+                            }
                         }
                     )
                 }
@@ -155,6 +178,10 @@ class AuthViewModel(
                     )
                 }
             }
+
+            is AuthEvent.DismissError -> {
+                _state.update { it.copy(error = null) }
+            }
         }
     }
 
@@ -166,63 +193,73 @@ class AuthViewModel(
                 // Auto-fill the OTP if available
                 credential.smsCode?.let { smsCode ->
                     val otpDigits = smsCode.map { it.toString().toIntOrNull() }
-                    _state.update { it.copy(
-                        otpState = it.otpState.copy(
-                            code = otpDigits
+                    _state.update {
+                        it.copy(
+                            otpState = it.otpState.copy(
+                                code = otpDigits
+                            )
                         )
-                    ) }
+                    }
                 }
 
                 authManager.verifyCode(
                     code = credential.smsCode ?: "",
                     onSuccess = {
-                        _state.update { it.copy(
-                            isAuthenticated = true,
-                            isLoading = false
-                        ) }
+                        _state.update {
+                            it.copy(
+                                isAuthenticated = true,
+                                isLoading = false
+                            )
+                        }
                     },
                     onError = { error ->
-                        _state.update { it.copy(
-                            error = error,
-                            isLoading = false
-                        ) }
+                        _state.update {
+                            it.copy(
+                                error = error,
+                                isLoading = false
+                            )
+                        }
                     }
                 )
             } catch (e: Exception) {
-                _state.update { it.copy(
-                    error = e.message ?: "Authentication failed",
-                    isLoading = false
-                ) }
+                _state.update {
+                    it.copy(
+                        error = e.message ?: "Authentication failed",
+                        isLoading = false
+                    )
+                }
             }
         }
     }
 
     private fun enterNumber(number: Int?, index: Int) {
         val newCode = state.value.otpState.code.mapIndexed { currentIndex, currentNumber ->
-            if(currentIndex == index) {
+            if (currentIndex == index) {
                 number
             } else {
                 currentNumber
             }
         }
         val wasNumberRemoved = number == null
-        _state.update { it.copy(
-            otpState = it.otpState.copy(
-                code = newCode,
-                focusedIndex = if(wasNumberRemoved || it.otpState.code.getOrNull(index) != null) {
-                    it.otpState.focusedIndex
-                } else {
-                    getNextFocusedTextFieldIndex(
-                        currentCode = it.otpState.code,
-                        currentFocusedIndex = it.otpState.focusedIndex
-                    )
-                },
-                // Update validation logic
-                isValid = if(newCode.none { it == null }) {
-                    true  // If all fields are filled, enable verification button
-                } else null
+        _state.update {
+            it.copy(
+                otpState = it.otpState.copy(
+                    code = newCode,
+                    focusedIndex = if (wasNumberRemoved || it.otpState.code.getOrNull(index) != null) {
+                        it.otpState.focusedIndex
+                    } else {
+                        getNextFocusedTextFieldIndex(
+                            currentCode = it.otpState.code,
+                            currentFocusedIndex = it.otpState.focusedIndex
+                        )
+                    },
+                    // Update validation logic
+                    isValid = if (newCode.none { it == null }) {
+                        true  // If all fields are filled, enable verification button
+                    } else null
+                )
             )
-        ) }
+        }
 
         // Automatically trigger verification if all digits are entered
         if (newCode.none { it == null }) {
@@ -232,17 +269,21 @@ class AuthViewModel(
                 authManager.verifyCode(
                     code = otpCode,
                     onSuccess = {
-                        _state.update { it.copy(
-                            isAuthenticated = true,
-                            isLoading = false
-                        ) }
+                        _state.update {
+                            it.copy(
+                                isAuthenticated = true,
+                                isLoading = false
+                            )
+                        }
                     },
                     onError = { error ->
-                        _state.update { it.copy(
-                            error = error,
-                            isLoading = false,
-                            otpState = it.otpState.copy(isValid = false)
-                        ) }
+                        _state.update {
+                            it.copy(
+                                error = error,
+                                isLoading = false,
+                                otpState = it.otpState.copy(isValid = false)
+                            )
+                        }
                     }
                 )
             }
@@ -257,11 +298,11 @@ class AuthViewModel(
         currentCode: List<Int?>,
         currentFocusedIndex: Int?
     ): Int? {
-        if(currentFocusedIndex == null) {
+        if (currentFocusedIndex == null) {
             return null
         }
 
-        if(currentFocusedIndex == 5) {
+        if (currentFocusedIndex == 5) {
             return currentFocusedIndex
         }
 
@@ -276,10 +317,10 @@ class AuthViewModel(
         currentFocusedIndex: Int
     ): Int {
         code.forEachIndexed { index, number ->
-            if(index <= currentFocusedIndex) {
+            if (index <= currentFocusedIndex) {
                 return@forEachIndexed
             }
-            if(number == null) {
+            if (number == null) {
                 return index
             }
         }

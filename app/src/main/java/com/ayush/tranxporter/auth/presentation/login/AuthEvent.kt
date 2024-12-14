@@ -7,5 +7,7 @@ sealed interface AuthEvent {
     object OnVerifyOtp : AuthEvent
     object OnResendOtp : AuthEvent
     object ShowPhoneInput : AuthEvent
+    object DismissError : AuthEvent
+
 
 }
