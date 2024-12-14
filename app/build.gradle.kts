@@ -109,5 +109,7 @@ dependencies {
     // Koin
     implementation(libs.bundles.koin)
 
+    implementation("com.google.accompanist:accompanist-systemuicontroller:0.32.0")
+
 
 }

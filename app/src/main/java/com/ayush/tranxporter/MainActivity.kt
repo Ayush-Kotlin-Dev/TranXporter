@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -21,9 +23,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource.Companion.SideEffect
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -46,6 +52,7 @@ import com.ayush.tranxporter.user.BookingScreen
 import com.ayush.tranxporter.user.LocationSelectionScreen
 import com.ayush.tranxporter.user.SearchLocationScreen
 import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
+import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
 import org.koin.androidx.compose.koinViewModel
@@ -89,7 +96,9 @@ fun MainScreen() {
         composable("auth") {
             Navigator(AuthScreen {
                 // Navigate to service selection after auth
-                navController.navigate("service_selection")
+                navController.navigate("service_selection") {
+                    popUpTo("auth") { inclusive = true }
+                }
             })
         }
         composable("service_selection") {
@@ -178,15 +187,33 @@ fun MainScreen() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(navController: NavController) {
+    val systemUiController = rememberSystemUiController()
+    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+    val isDarkIcons = MaterialTheme.colorScheme.primary.luminance() > 0.5
+
+    SideEffect {
+        systemUiController.setStatusBarColor(
+            color = primaryContainer,
+            darkIcons = isDarkIcons
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("TranXporter") },
+                title = {
+                    Text(
+                        "TranXporter",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
+                    containerColor = primaryContainer
+                ),
+                modifier = Modifier.statusBarsPadding()
             )
-        }
+        },
+        modifier = Modifier.systemBarsPadding()
     ) { paddingValues ->
         Column(
             modifier = Modifier
