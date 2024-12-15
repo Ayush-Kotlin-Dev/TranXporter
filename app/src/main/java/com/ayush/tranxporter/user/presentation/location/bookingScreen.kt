@@ -1,4 +1,4 @@
-package com.ayush.tranxporter.user
+package com.ayush.tranxporter.user.presentation.location
 
 import android.Manifest
 import android.annotation.SuppressLint
@@ -58,7 +58,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -66,7 +65,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.ayush.tranxporter.R
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils.getAddressFromLocation
-import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
+import com.ayush.tranxporter.user.presentation.bookingdetails.BookingStep
+import com.ayush.tranxporter.user.presentation.bookingdetails.ItemDetailsCard
+import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
 import com.ayush.tranxporter.utils.VibratorService
 import com.ayush.tranxporter.utils.calculateFare
 import com.ayush.tranxporter.utils.getDrivingDistance
@@ -129,6 +130,10 @@ fun BookingScreen(
     var routePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
 
     val scope = rememberCoroutineScope()
+
+    var bookingStep by remember { mutableStateOf(BookingStep.LOCATION_SELECTION) }
+    var itemDetails by remember { mutableStateOf<TransportItemDetails?>(null) }
+
 // Initialize route if both locations are provided
     LaunchedEffect(Unit) {
         when (locationType?.lowercase()) {
@@ -455,121 +460,23 @@ fun BookingScreen(
 
                 // Combined bottom card UI
                 if (pickupLocation != null && dropOffLocation != null) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                            .height(380.dp)  // Increased height to accommodate all elements
-                            .shadow(
-                                elevation = 2.dp,
-                                shape = RoundedCornerShape(12.dp)
-                            ),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .padding(16.dp)
-                                .fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)  // Increased spacing between elements
-                        ) {
-                            // Distance Information
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Distance",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = when {
-                                        drivingDistance != null -> "%.1f km".format(drivingDistance)
-                                        pickupLocation != null && dropOffLocation != null -> "Calculating..."
-                                        else -> "-"
-                                    },
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                            Divider(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    when (bookingStep) {
+                        BookingStep.LOCATION_SELECTION -> {
+                            ItemDetailsCard(
+                                onDetailsSubmitted = { details ->
+                                    itemDetails = details
+                                    bookingStep = BookingStep.VEHICLE_SELECTION
+                                }
                             )
-
-                            // Vehicle Options
-                            VehicleOption(
-                                vehicle = "Small Truck",
-                                icon = R.drawable.pickup_truck,
-                                time = travelTime ?: "Calculating...",
-                                price = smallTruckFare?.let { "₹${it.toInt()}" }
-                                    ?: "Calculating...",
-                                isSelected = true
+                        }
+                        BookingStep.VEHICLE_SELECTION -> {
+                            VehicleSelectionCard(
+                                drivingDistance = drivingDistance,
+                                travelTime = travelTime,
+                                smallTruckFare = smallTruckFare,
+                                largeTruckFare = largeTruckFare,
+                                onBack = { bookingStep = BookingStep.LOCATION_SELECTION }
                             )
-
-                            Divider(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-
-                            VehicleOption(
-                                vehicle = "Large Truck",
-                                icon = R.drawable.truck,
-                                time = travelTime ?: "Calculating...",
-                                price = largeTruckFare?.let { "₹${it.toInt()}" }
-                                    ?: "Calculating...",
-                                isSelected = false
-                            )
-
-                            // Payment and Offers Row
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                PaymentOption(
-                                    text = "Cash",
-                                    icon = Icons.Default.Star,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                PaymentOption(
-                                    text = "Offers",
-                                    icon = Icons.Default.Notifications,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Spacer(modifier = Modifier.weight(1f))  // Push button to bottom
-                            Button(
-                                onClick = {
-                                    VibratorService.vibrate(context , VibratorService.VibrationPattern.Success)
-                                    // Handle booking
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary
-                                ),
-                                shape = RoundedCornerShape(24.dp)
-                            ) {
-                                Text(
-                                    "Book Now",
-                                    color = Color.Black,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
                         }
                     }
                 }
@@ -578,7 +485,124 @@ fun BookingScreen(
         }
     }
 }
+@Composable
+private fun VehicleSelectionCard(
+    drivingDistance: Double?,
+    travelTime: String?,
+    smallTruckFare: Double?,
+    largeTruckFare: Double?,
+    onBack: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .height(380.dp)
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        Column(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Distance Information
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Distance",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = when {
+                        drivingDistance != null -> "%.1f km".format(drivingDistance)
+                        else -> "Calculating..."
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
+            Divider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
+
+            // Vehicle Options
+            VehicleOption(
+                vehicle = "Small Truck",
+                icon = R.drawable.pickup_truck,
+                time = travelTime ?: "Calculating...",
+                price = smallTruckFare?.let { "₹${it.toInt()}" } ?: "Calculating...",
+                isSelected = true
+            )
+
+            Divider(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            )
+
+            VehicleOption(
+                vehicle = "Large Truck",
+                icon = R.drawable.truck,
+                time = travelTime ?: "Calculating...",
+                price = largeTruckFare?.let { "₹${it.toInt()}" } ?: "Calculating...",
+                isSelected = false
+            )
+
+            // Payment and Offers Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PaymentOption(
+                    text = "Cash",
+                    icon = Icons.Default.Star,
+                    modifier = Modifier.weight(1f)
+                )
+                PaymentOption(
+                    text = "Offers",
+                    icon = Icons.Default.Notifications,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Button(
+                onClick = {
+                    // Handle booking
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(24.dp)
+            ) {
+                Text(
+                    "Confirm Booking",
+                    color = Color.Black,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
 @Composable
 private fun VehicleOption(
     vehicle: String,

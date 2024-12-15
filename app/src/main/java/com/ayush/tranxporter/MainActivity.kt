@@ -23,13 +23,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource.Companion.SideEffect
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -48,7 +46,7 @@ import com.ayush.tranxporter.core.domain.model.AppState
 import com.ayush.tranxporter.core.presentation.onboard.OnboardingScreen
 import com.ayush.tranxporter.driver.DriverScreen
 import com.ayush.tranxporter.ui.theme.TranXporterTheme
-import com.ayush.tranxporter.user.BookingScreen
+import com.ayush.tranxporter.user.presentation.location.BookingScreen
 import com.ayush.tranxporter.user.LocationSelectionScreen
 import com.ayush.tranxporter.user.SearchLocationScreen
 import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel

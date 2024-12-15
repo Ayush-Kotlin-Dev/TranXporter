@@ -2,7 +2,7 @@ package com.ayush.tranxporter.utils
 
 import android.util.Log
 import com.ayush.tranxporter.BuildConfig
-import com.ayush.tranxporter.user.VehicleType
+import com.ayush.tranxporter.user.presentation.location.VehicleType
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
