@@ -66,7 +66,6 @@ import androidx.navigation.NavHostController
 import com.ayush.tranxporter.R
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils.getAddressFromLocation
 import com.ayush.tranxporter.user.presentation.bookingdetails.BookingStep
-import com.ayush.tranxporter.user.presentation.bookingdetails.ItemDetailsCard
 import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
 import com.ayush.tranxporter.utils.VibratorService
 import com.ayush.tranxporter.utils.calculateFare
@@ -134,7 +133,7 @@ fun BookingScreen(
     var bookingStep by remember { mutableStateOf(BookingStep.LOCATION_SELECTION) }
     var itemDetails by remember { mutableStateOf<TransportItemDetails?>(null) }
 
-// Initialize route if both locations are provided
+
     LaunchedEffect(Unit) {
         when (locationType?.lowercase()) {
             "pickup" -> {
@@ -460,31 +459,24 @@ fun BookingScreen(
 
                 // Combined bottom card UI
                 if (pickupLocation != null && dropOffLocation != null) {
-                    when (bookingStep) {
-                        BookingStep.LOCATION_SELECTION -> {
-                            ItemDetailsCard(
-                                onDetailsSubmitted = { details ->
-                                    itemDetails = details
-                                    bookingStep = BookingStep.VEHICLE_SELECTION
-                                }
-                            )
-                        }
-                        BookingStep.VEHICLE_SELECTION -> {
-                            VehicleSelectionCard(
-                                drivingDistance = drivingDistance,
-                                travelTime = travelTime,
-                                smallTruckFare = smallTruckFare,
-                                largeTruckFare = largeTruckFare,
-                                onBack = { bookingStep = BookingStep.LOCATION_SELECTION }
-                            )
-                        }
-                    }
+
+
+                    VehicleSelectionCard(
+                        drivingDistance = drivingDistance,
+                        travelTime = travelTime,
+                        smallTruckFare = smallTruckFare,
+                        largeTruckFare = largeTruckFare,
+                        onBack = { bookingStep = BookingStep.LOCATION_SELECTION }
+                    )
+
+
                 }
             }
 
         }
     }
 }
+
 @Composable
 private fun VehicleSelectionCard(
     drivingDistance: Double?,
@@ -603,6 +595,7 @@ private fun VehicleSelectionCard(
         }
     }
 }
+
 @Composable
 private fun VehicleOption(
     vehicle: String,
@@ -617,7 +610,7 @@ private fun VehicleOption(
             .fillMaxWidth()
             .height(72.dp)
             .clickable {
-                VibratorService.vibrate(context,VibratorService.VibrationPattern.Click)
+                VibratorService.vibrate(context, VibratorService.VibrationPattern.Click)
             }
             .border(
                 width = if (isSelected) 2.dp else 0.dp,

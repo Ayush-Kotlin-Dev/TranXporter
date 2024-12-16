@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.libraries.places.api.Places
@@ -67,7 +68,10 @@ import kotlin.math.sqrt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchLocationScreen(navController: NavHostController) {
+fun SearchLocationScreen(
+    navController: NavHostController,
+    transportDetails: TransportItemDetails
+) {
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var predictions by remember { mutableStateOf<List<PlacePrediction>>(emptyList()) }
@@ -116,6 +120,33 @@ fun SearchLocationScreen(navController: NavHostController) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Transport Details:",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    Text(
+                        text = buildString {
+                            append("Vehicle Type: ${transportDetails.truckType}\n")
+                            append("Category: ${transportDetails.category}\n")
+                            append("Weight: ${transportDetails.weight} kg\n")
+                            append("Dimensions: ${transportDetails.dimensions}\n")
+                            if(transportDetails.specialHandling) {
+                                append("Special Handling Required")
+                            }
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                }
+            }
             if (searchQuery.isEmpty()) {
                 // Show recent locations
                 items(recentLocations) { location ->
@@ -503,6 +534,7 @@ private fun calculateRelevanceScore(
 
     return score
 }
+
 // Optimized location retrieval
 private suspend fun getCurrentLocation(context: Context): LatLng? {
     return try {
@@ -510,7 +542,8 @@ private suspend fun getCurrentLocation(context: Context): LatLng? {
 
         // Use a single checkpoint for location permission
         if (context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION)
-            == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            == android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
 
             // Use withContext to handle async location retrieval
             withContext(Dispatchers.IO) {

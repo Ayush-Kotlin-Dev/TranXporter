@@ -1,6 +1,7 @@
 package com.ayush.tranxporter
 
 import android.annotation.SuppressLint
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -49,10 +50,14 @@ import com.ayush.tranxporter.ui.theme.TranXporterTheme
 import com.ayush.tranxporter.user.presentation.location.BookingScreen
 import com.ayush.tranxporter.user.LocationSelectionScreen
 import com.ayush.tranxporter.user.SearchLocationScreen
+import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsScreen
+import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
 import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.koin.androidx.compose.koinViewModel
 
 class MainActivity : ComponentActivity() {
@@ -127,11 +132,40 @@ fun MainScreen() {
         composable("booking") {
             BookingScreen(navController, viewModel = viewModel)
         }
-        composable("searchLocation") {
-            SearchLocationScreen(navController)
-        }
+
         composable("locationSelection") {
             LocationSelectionScreen(navController, viewModel = viewModel)
+        }
+        composable("booking_details") {
+            BookingDetailsScreen(
+                navController = navController,
+                onDetailsSubmitted = { details ->
+                    // Navigate to search location with the details
+                    navController.navigate("searchLocation?details=${Uri.encode(Json.encodeToString(details))}")
+                }
+            )
+        }
+
+        composable(
+            "searchLocation?details={details}",
+            arguments = listOf(
+                navArgument("details") {
+                    type = NavType.StringType
+                    nullable = true
+                }
+            )
+        ) { backStackEntry ->
+            val detailsJson = backStackEntry.arguments?.getString("details")
+            val transportDetails = if (detailsJson != null) {
+                Json.decodeFromString<TransportItemDetails>(detailsJson)
+            } else null
+
+            if (transportDetails != null) {
+                SearchLocationScreen(
+                    navController = navController,
+                    transportDetails = transportDetails
+                )
+            }
         }
         composable("driver") {
             DriverScreen()
@@ -223,7 +257,7 @@ fun HomeScreen(navController: NavController) {
             Text("Welcome to TranXporter", style = MaterialTheme.typography.titleLarge)
             Spacer(Modifier.height(16.dp))
             Button(
-                onClick = { navController.navigate("searchLocation") },
+                onClick = { navController.navigate("booking_details") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
