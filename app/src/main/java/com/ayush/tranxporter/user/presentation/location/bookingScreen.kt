@@ -129,43 +129,41 @@ fun BookingScreen(
     var routePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
 
     val scope = rememberCoroutineScope()
-
-    var bookingStep by remember { mutableStateOf(BookingStep.LOCATION_SELECTION) }
-    var itemDetails by remember { mutableStateOf<TransportItemDetails?>(null) }
+    var hasAnimatedToInitialLocation by remember { mutableStateOf(false) }
 
 
-    LaunchedEffect(Unit) {
-        when (locationType?.lowercase()) {
-            "pickup" -> {
-                // Do nothing, wait for map selection
-            }
-
-            "drop" -> {
-                // Do nothing, wait for map selection
-            }
-
-            else -> {
-                // Only initialize if we're coming from deep link or direct navigation
-                if (initialPickup != null && initialDropoff != null) {
-                    try {
-                        val points = getRoutePoints(initialPickup, initialDropoff)
-                        routePoints = points
-                        travelTime = getTravelTime(initialPickup, initialDropoff)
-
-                        val bounds = LatLngBounds.builder()
-                            .include(initialPickup)
-                            .include(initialDropoff)
-                            .build()
-                        cameraPositionState.animate(
-                            CameraUpdateFactory.newLatLngBounds(bounds, 100)
-                        )
-                    } catch (e: Exception) {
-                        Log.e("Route", "Failed to initialize route", e)
-                    }
-                }
-            }
-        }
-    }
+//    LaunchedEffect(Unit) {
+//        when (locationType?.lowercase()) {
+//            "pickup" -> {
+//                // Do nothing, wait for map selection
+//            }
+//
+//            "drop" -> {
+//                // Do nothing, wait for map selection
+//            }
+//
+//            else -> {
+//                // Only initialize if we're coming from deep link or direct navigation
+//                if (initialPickup != null && initialDropoff != null) {
+//                    try {
+//                        val points = getRoutePoints(initialPickup, initialDropoff)
+//                        routePoints = points
+//                        travelTime = getTravelTime(initialPickup, initialDropoff)
+//
+//                        val bounds = LatLngBounds.builder()
+//                            .include(initialPickup)
+//                            .include(initialDropoff)
+//                            .build()
+//                        cameraPositionState.animate(
+//                            CameraUpdateFactory.newLatLngBounds(bounds, 100)
+//                        )
+//                    } catch (e: Exception) {
+//                        Log.e("Route", "Failed to initialize route", e)
+//                    }
+//                }
+//            }
+//        }
+//    }
 
     var drivingDistance by remember { mutableStateOf<Double?>(null) }
 
@@ -217,24 +215,118 @@ fun BookingScreen(
             travelTime = getTravelTime(pickupLocation!!, dropOffLocation!!)
         }
     }
-    // Update the current location effect
+
+    LaunchedEffect(Unit) {
+        if (!hasAnimatedToInitialLocation) {
+            try {
+                if (permissionState.allPermissionsGranted) {
+                    val location = fusedLocationClient.lastLocation.await()
+                    location?.let {
+                        val initialLatLng = LatLng(it.latitude, it.longitude)
+                        cameraPositionState.animate(
+                            update = CameraUpdateFactory.newLatLngZoom(
+                                initialLatLng,
+                                15f
+                            ),
+                            durationMs = 1000
+                        )
+                        hasAnimatedToInitialLocation = true
+                    }
+                } else {
+                    // If no permission, animate to a default location in India
+                    val defaultLocation = LatLng(20.5937, 78.9629) // Center of India
+                    cameraPositionState.animate(
+                        update = CameraUpdateFactory.newLatLngZoom(
+                            defaultLocation,
+                            5f
+                        ),
+                        durationMs = 1000
+                    )
+                    hasAnimatedToInitialLocation = true
+                }
+            } catch (e: Exception) {
+                Log.e("Location", "Error getting initial location", e)
+                // Animate to default location in case of error
+                val defaultLocation = LatLng(20.5937, 78.9629) // Center of India
+                cameraPositionState.animate(
+                    update = CameraUpdateFactory.newLatLngZoom(
+                        defaultLocation,
+                        5f
+                    ),
+                    durationMs = 1000
+                )
+                hasAnimatedToInitialLocation = true
+            }
+        }
+    }
+
+    // Update the existing LaunchedEffect for permission state
     LaunchedEffect(permissionState.allPermissionsGranted) {
         if (permissionState.allPermissionsGranted &&
             viewModel.isUsingCurrentLocation &&
             viewModel.pickupLocation == null &&
             locationType?.lowercase() != "drop"
-        ) {  // Don't update if selecting drop location
-            fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+        ) {
+            try {
+                val location = fusedLocationClient.lastLocation.await()
                 location?.let {
                     currentLocation = LatLng(it.latitude, it.longitude)
-                    coroutineScope.launch {
-                        val address = getAddressFromLocation(context, currentLocation!!)
-                        viewModel.updateCurrentLocation(currentLocation!!, address)
+                    val address = getAddressFromLocation(context, currentLocation!!)
+                    viewModel.updateCurrentLocation(currentLocation!!, address)
+                    if (!hasAnimatedToInitialLocation) {
                         cameraPositionState.animate(
-                            CameraUpdateFactory.newLatLngZoom(currentLocation!!, 15f)
+                            CameraUpdateFactory.newLatLngZoom(currentLocation!!, 15f),
+                            durationMs = 1000
                         )
+                        hasAnimatedToInitialLocation = true
                     }
                 }
+            } catch (e: Exception) {
+                Log.e("Location", "Error getting current location", e)
+                Toast.makeText(
+                    context,
+                    "Unable to get current location",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    // Add a check for initial locations from navigation
+    LaunchedEffect(initialPickup, initialDropoff) {
+        when {
+            initialPickup != null && initialDropoff != null -> {
+                try {
+                    val points = getRoutePoints(initialPickup, initialDropoff)
+                    routePoints = points
+                    travelTime = getTravelTime(initialPickup, initialDropoff)
+
+                    val bounds = LatLngBounds.builder()
+                        .include(initialPickup)
+                        .include(initialDropoff)
+                        .build()
+                    cameraPositionState.animate(
+                        CameraUpdateFactory.newLatLngBounds(bounds, 100),
+                        durationMs = 1000
+                    )
+                    hasAnimatedToInitialLocation = true
+                } catch (e: Exception) {
+                    Log.e("Route", "Failed to initialize route", e)
+                }
+            }
+            initialPickup != null -> {
+                cameraPositionState.animate(
+                    CameraUpdateFactory.newLatLngZoom(initialPickup, 15f),
+                    durationMs = 1000
+                )
+                hasAnimatedToInitialLocation = true
+            }
+            initialDropoff != null -> {
+                cameraPositionState.animate(
+                    CameraUpdateFactory.newLatLngZoom(initialDropoff, 15f),
+                    durationMs = 1000
+                )
+                hasAnimatedToInitialLocation = true
             }
         }
     }
@@ -461,13 +553,21 @@ fun BookingScreen(
                 if (pickupLocation != null && dropOffLocation != null) {
 
 
-                    VehicleSelectionCard(
-                        drivingDistance = drivingDistance,
-                        travelTime = travelTime,
-                        smallTruckFare = smallTruckFare,
-                        largeTruckFare = largeTruckFare,
-                        onBack = { bookingStep = BookingStep.LOCATION_SELECTION }
-                    )
+                    Box(
+                        modifier = Modifier.align(Alignment.BottomCenter),
+                        contentAlignment = Alignment.BottomCenter
+                    ){
+                        VehicleSelectionCard(
+                            drivingDistance = drivingDistance,
+                            travelTime = travelTime,
+                            smallTruckFare = smallTruckFare,
+                            largeTruckFare = largeTruckFare,
+                            onBack = {
+                                viewModel.setDropLocation(null, "")
+                                dropOffLocation = null
+                            }
+                        )
+                    }
 
 
                 }
