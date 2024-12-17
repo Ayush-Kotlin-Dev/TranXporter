@@ -36,17 +36,25 @@ import org.koin.androidx.compose.koinViewModel
 fun BookingDetailsScreen(
     navController: NavController,
     viewModel: BookingDetailsViewModel = koinViewModel(),
-    onDetailsSubmitted: (TransportItemDetails) -> Unit
+    onDetailsSubmitted: () -> Unit
 ) {
     val state = viewModel.state
     val scrollState = rememberScrollState()
     val context = LocalContext.current
 
-    // Effect to handle successful submission
+    var hasNavigated by remember { mutableStateOf(false) }
+
+    // Handle submission and navigation
     LaunchedEffect(state.submittedDetails) {
-        state.submittedDetails?.let { details ->
-            onDetailsSubmitted(details)
-            Toast.makeText(context, "Details saved successfully!", Toast.LENGTH_SHORT).show()
+        if (state.submittedDetails != null && !hasNavigated) {
+            onDetailsSubmitted()  // Don't pass details here
+            hasNavigated = true
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            hasNavigated = false
         }
     }
 
@@ -91,14 +99,11 @@ fun BookingDetailsScreen(
         }
     }
 }
-
 @Composable
 fun ItemDetailsCard(
     state: BookingDetailsState,
     onEvent: (BookingDetailsEvent) -> Unit
 ) {
-
-
 
     Card(
         modifier = Modifier

@@ -12,112 +12,167 @@ class BookingDetailsViewModel : ViewModel(), KoinComponent {
     var state by mutableStateOf(BookingDetailsState())
         private set
 
-    // Validation states
-    private var weightError by mutableStateOf<String?>(null)
-    private var dimensionsError by mutableStateOf<String?>(null)
-
     fun onEvent(event: BookingDetailsEvent) {
         when (event) {
             is BookingDetailsEvent.CategorySelected -> {
-                state = state.copy(selectedCategory = event.category)
+                updateState { copy(selectedCategory = event.category) }
                 validateForm()
             }
+
             is BookingDetailsEvent.WeightChanged -> {
-                state = state.copy(weight = event.weight)
-                validateWeight(event.weight)
+                updateState {
+                    copy(
+                        weight = event.weight,
+                        weightError = validateWeight(event.weight)
+                    )
+                }
                 validateForm()
             }
+
             is BookingDetailsEvent.DimensionsChanged -> {
-                state = state.copy(dimensions = event.dimensions)
-                validateDimensions(event.dimensions)
+                updateState {
+                    copy(
+                        dimensions = event.dimensions,
+                        dimensionsError = validateDimensions(event.dimensions)
+                    )
+                }
                 validateForm()
             }
+
             is BookingDetailsEvent.TruckTypeSelected -> {
-                state = state.copy(selectedTruckType = event.truckType)
+                updateState { copy(selectedTruckType = event.truckType) }
                 validateForm()
             }
+
             is BookingDetailsEvent.SpecialHandlingChanged -> {
-                state = state.copy(specialHandling = event.enabled)
+                updateState { copy(specialHandling = event.enabled) }
             }
+
             is BookingDetailsEvent.DescriptionChanged -> {
-                state = state.copy(description = event.description)
+                updateState { copy(description = event.description) }
             }
+
             BookingDetailsEvent.Submit -> submitForm()
             BookingDetailsEvent.Reset -> resetForm()
+            BookingDetailsEvent.ResetSubmission -> {
+                updateState { copy(submittedDetails = null) }
+            }
         }
     }
 
-    private fun validateWeight(weight: String) {
-        weightError = when {
+    // Helper function to update state
+    private fun updateState(update: BookingDetailsState.() -> BookingDetailsState) {
+        state = state.update()
+    }
+
+    private fun validateWeight(weight: String): String? =
+        when {
             weight.isEmpty() -> "Weight is required"
             weight.toDoubleOrNull() == null -> "Please enter a valid number"
             weight.toDouble() <= 0 -> "Weight must be greater than 0"
+            weight.toDouble() > 10000 -> "Weight cannot exceed 10,000 kg" // Added reasonable limit
             else -> null
         }
-        state = state.copy(weightError = weightError)
-    }
 
-    private fun validateDimensions(dimensions: String) {
-        dimensionsError = when {
+    private fun validateDimensions(dimensions: String): String? =
+        when {
             dimensions.isEmpty() -> "Dimensions are required"
             !dimensions.matches(Regex("""^\d+\s*x\s*\d+\s*x\s*\d+$""")) ->
                 "Format should be: length x width x height"
-            else -> null
+
+            else -> {
+                try {
+                    val (l, w, h) = dimensions.split("x").map { it.trim().toInt() }
+                    when {
+                        l <= 0 || w <= 0 || h <= 0 -> "Dimensions must be greater than 0"
+                        l > 1000 || w > 1000 || h > 1000 -> "Dimensions cannot exceed 1000 cm"
+                        else -> null
+                    }
+                } catch (e: Exception) {
+                    "Invalid dimensions format"
+                }
+            }
         }
-        state = state.copy(dimensionsError = dimensionsError)
-    }
 
     private fun validateForm() {
-        val isValid = state.selectedCategory != null &&
-                state.weightError == null &&
-                state.dimensionsError == null &&
-                state.selectedTruckType != null &&
-                state.weight.isNotEmpty() &&
-                state.dimensions.isNotEmpty()
-
-        state = state.copy(isFormValid = isValid)
+        val isValid = with(state) {
+            selectedCategory != null &&
+                    weightError == null &&
+                    dimensionsError == null &&
+                    selectedTruckType != null &&
+                    weight.isNotEmpty() &&
+                    dimensions.isNotEmpty()
+        }
+        updateState { copy(isFormValid = isValid) }
     }
 
     private fun submitForm() {
         if (!state.isFormValid) return
 
-        state = state.copy(isLoading = true)
+        updateState { copy(isLoading = true) }
 
-        val details = TransportItemDetails(
-            category = state.selectedCategory!!,
-            weight = state.weight.toDouble(),
-            dimensions = state.dimensions,
-            truckType = state.selectedTruckType!!,
-            specialHandling = state.specialHandling,
-            description = state.description
-        )
+        try {
+            val details = TransportItemDetails(
+                category = state.selectedCategory!!,
+                weight = state.weight.toDouble(),
+                dimensions = state.dimensions,
+                truckType = state.selectedTruckType!!,
+                specialHandling = state.specialHandling,
+                description = state.description
+            )
 
-        state = state.copy(
-            submittedDetails = details,
-            isLoading = false
-        )
+            updateState {
+                copy(
+                    submittedDetails = details,
+                    isLoading = false,
+                    error = null
+                )
+            }
+        } catch (e: Exception) {
+            updateState {
+                copy(
+                    isLoading = false,
+                    error = "Failed to submit form: ${e.message}"
+                )
+            }
+        }
     }
 
     private fun resetForm() {
         state = BookingDetailsState()
-        weightError = null
-        dimensionsError = null
+    }
+
+
+    fun hasSubmittedDetails(): Boolean = state.submittedDetails != null
+
+    fun getSubmittedDetails(): TransportItemDetails? = state.submittedDetails
+
+    fun clearError() {
+        updateState { copy(error = null) }
     }
 }
 
+// Improved state class with better organization
 data class BookingDetailsState(
+    // Form inputs
     val selectedCategory: String? = null,
     val weight: String = "",
     val dimensions: String = "",
     val selectedTruckType: TruckType? = null,
     val specialHandling: Boolean = false,
     val description: String = "",
+
+    // Validation states
     val weightError: String? = null,
     val dimensionsError: String? = null,
     val isFormValid: Boolean = false,
+
+    // UI states
     val isLoading: Boolean = false,
-    val submittedDetails: TransportItemDetails? = null,
-    val error: String? = null
+    val error: String? = null,
+
+    // Submission state
+    val submittedDetails: TransportItemDetails? = null
 )
 
 sealed class BookingDetailsEvent {
@@ -129,6 +184,7 @@ sealed class BookingDetailsEvent {
     data class DescriptionChanged(val description: String) : BookingDetailsEvent()
     data object Submit : BookingDetailsEvent()
     data object Reset : BookingDetailsEvent()
+    data object ResetSubmission : BookingDetailsEvent() // Add this
 }
 
 @Serializable
@@ -140,6 +196,7 @@ data class TransportItemDetails(
     val specialHandling: Boolean = false,
     val description: String = ""
 )
+
 @Serializable
 enum class TruckType {
     PICKUP,

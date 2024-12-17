@@ -51,6 +51,7 @@ import com.ayush.tranxporter.user.presentation.location.BookingScreen
 import com.ayush.tranxporter.user.LocationSelectionScreen
 import com.ayush.tranxporter.user.SearchLocationScreen
 import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsScreen
+import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsViewModel
 import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
 import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
@@ -91,6 +92,8 @@ fun MainScreen() {
     val viewModel: LocationSelectionViewModel = viewModel(
         factory = LocationSelectionViewModel.Factory
     )
+    val bookingDetailsViewModel: BookingDetailsViewModel = koinViewModel()
+
 
     NavHost(
         navController = navController,
@@ -139,33 +142,18 @@ fun MainScreen() {
         composable("booking_details") {
             BookingDetailsScreen(
                 navController = navController,
-                onDetailsSubmitted = { details ->
-                    // Navigate to search location with the details
-                    navController.navigate("searchLocation?details=${Uri.encode(Json.encodeToString(details))}")
+                viewModel = bookingDetailsViewModel,
+                onDetailsSubmitted = {
+                    navController.navigate("search_location")
                 }
             )
         }
 
-        composable(
-            "searchLocation?details={details}",
-            arguments = listOf(
-                navArgument("details") {
-                    type = NavType.StringType
-                    nullable = true
-                }
+        composable("search_location") {
+            SearchLocationScreen(
+                navController = navController,
+                viewModel = bookingDetailsViewModel
             )
-        ) { backStackEntry ->
-            val detailsJson = backStackEntry.arguments?.getString("details")
-            val transportDetails = if (detailsJson != null) {
-                Json.decodeFromString<TransportItemDetails>(detailsJson)
-            } else null
-
-            if (transportDetails != null) {
-                SearchLocationScreen(
-                    navController = navController,
-                    transportDetails = transportDetails
-                )
-            }
         }
         composable("driver") {
             DriverScreen()

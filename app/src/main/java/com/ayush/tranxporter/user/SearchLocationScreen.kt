@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
+import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsViewModel
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.libraries.places.api.Places
@@ -60,6 +61,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
@@ -70,8 +72,9 @@ import kotlin.math.sqrt
 @Composable
 fun SearchLocationScreen(
     navController: NavHostController,
-    transportDetails: TransportItemDetails
+    viewModel: BookingDetailsViewModel = koinViewModel()
 ) {
+    val state = viewModel.state
     val context = LocalContext.current
     var searchQuery by remember { mutableStateOf("") }
     var predictions by remember { mutableStateOf<List<PlacePrediction>>(emptyList()) }
@@ -81,7 +84,6 @@ fun SearchLocationScreen(
         SavedLocation("Work", "456, TranXporter St")
     )
     val scope = rememberCoroutineScope()
-
     // Debounced search
     val debouncedSearchQuery by rememberUpdatedState(searchQuery)
     LaunchedEffect(debouncedSearchQuery) {
@@ -115,80 +117,89 @@ fun SearchLocationScreen(
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp)
-                ) {
-                    Text(
-                        text = "Transport Details:",
-                        style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+        state.submittedDetails?.let { details ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Transport Details:",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
 
-                    Text(
-                        text = buildString {
-                            append("Vehicle Type: ${transportDetails.truckType}\n")
-                            append("Category: ${transportDetails.category}\n")
-                            append("Weight: ${transportDetails.weight} kg\n")
-                            append("Dimensions: ${transportDetails.dimensions}\n")
-                            if(transportDetails.specialHandling) {
-                                append("Special Handling Required")
-                            }
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-                }
-            }
-            if (searchQuery.isEmpty()) {
-                // Show recent locations
-                items(recentLocations) { location ->
-                    RecentLocationItem(
-                        location = location,
-                        onLocationClick = {
-                            navController.navigate("booking?location=${location.title}")
-                        }
-                    )
-                }
-            } else {
-                // Show loading indicator
-                if (isSearching) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator()
-                        }
+                        Text(
+                            text = buildString {
+                                append("Vehicle Type: ${details.truckType}\n")
+                                append("Category: ${details.category}\n")
+                                append("Weight: ${details.weight} kg\n")
+                                append("Dimensions: ${details.dimensions}\n")
+                                if (details.specialHandling) {
+                                    append("Special Handling Required")
+                                }
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
                     }
                 }
-
-                // Show predictions
-                items(predictions) { prediction ->
-                    PredictionItem(
-                        prediction = prediction,
-                        onPredictionClick = {
-                            // Get place details before navigating
-                            scope.launch {
-                                val placeDetails = getPlaceDetails(prediction.placeId, context)
-                                navController.navigate(
-                                    "booking?location=${prediction.description}" +
-                                            "&lat=${placeDetails?.latitude ?: 0.0}" +
-                                            "&lng=${placeDetails?.longitude ?: 0.0}"
-                                )
+                if (searchQuery.isEmpty()) {
+                    // Show recent locations
+                    items(recentLocations) { location ->
+                        RecentLocationItem(
+                            location = location,
+                            onLocationClick = {
+                                navController.navigate("booking?location=${location.title}")
+                            }
+                        )
+                    }
+                } else {
+                    // Show loading indicator
+                    if (isSearching) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator()
                             }
                         }
-                    )
+                    }
+
+                    // Show predictions
+                    items(predictions) { prediction ->
+                        PredictionItem(
+                            prediction = prediction,
+                            onPredictionClick = {
+                                // Get place details before navigating
+                                scope.launch {
+                                    val placeDetails = getPlaceDetails(prediction.placeId, context)
+                                    navController.navigate(
+                                        "booking?location=${prediction.description}" +
+                                                "&lat=${placeDetails?.latitude ?: 0.0}" +
+                                                "&lng=${placeDetails?.longitude ?: 0.0}"
+                                    )
+                                }
+                            }
+                        )
+                    }
                 }
+            }
+        } ?: run {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("No transport details available")
             }
         }
     }
