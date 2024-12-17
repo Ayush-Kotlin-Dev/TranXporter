@@ -2,7 +2,6 @@ package com.ayush.tranxporter.user.presentation.location
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.location.Location
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.DrawableRes
@@ -65,8 +64,6 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.ayush.tranxporter.R
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils.getAddressFromLocation
-import com.ayush.tranxporter.user.presentation.bookingdetails.BookingStep
-import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
 import com.ayush.tranxporter.utils.VibratorService
 import com.ayush.tranxporter.utils.calculateFare
 import com.ayush.tranxporter.utils.getDrivingDistance
@@ -94,7 +91,6 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
-@SuppressLint("MissingPermission")
 @Composable
 fun BookingScreen(
     navController: NavHostController,

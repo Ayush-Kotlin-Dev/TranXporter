@@ -29,16 +29,26 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.ayush.tranxporter.R
 import kotlinx.serialization.Serializable
+import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookingDetailsScreen(
     navController: NavController,
+    viewModel: BookingDetailsViewModel = koinViewModel(),
     onDetailsSubmitted: (TransportItemDetails) -> Unit
 ) {
-    var isFormValid by remember { mutableStateOf(false) }
+    val state = viewModel.state
     val scrollState = rememberScrollState()
     val context = LocalContext.current
+
+    // Effect to handle successful submission
+    LaunchedEffect(state.submittedDetails) {
+        state.submittedDetails?.let { details ->
+            onDetailsSubmitted(details)
+            Toast.makeText(context, "Details saved successfully!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -61,63 +71,34 @@ fun BookingDetailsScreen(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(scrollState)
-        ) {
-            ItemDetailsCard(
-                onFormValidityChanged = { isFormValid = it },
-                onDetailsSubmitted = { details ->
-                    onDetailsSubmitted(details)
-                    Toast.makeText(context, "Details saved successfully!", Toast.LENGTH_SHORT).show()
-                }
+        if (state.isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.fillMaxSize()
+                    .wrapContentSize()
             )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(scrollState)
+            ) {
+                ItemDetailsCard(
+                    state = state,
+                    onEvent = viewModel::onEvent
+                )
+            }
         }
     }
 }
 
 @Composable
 fun ItemDetailsCard(
-    onFormValidityChanged: (Boolean) -> Unit,
-    onDetailsSubmitted: (TransportItemDetails) -> Unit
+    state: BookingDetailsState,
+    onEvent: (BookingDetailsEvent) -> Unit
 ) {
-    var selectedCategory by remember { mutableStateOf<String?>(null) }
-    var weight by remember { mutableStateOf("") }
-    var dimensions by remember { mutableStateOf("") }
-    var selectedTruckType by remember { mutableStateOf<TruckType?>(null) }
-    var specialHandling by remember { mutableStateOf(false) }
-    var description by remember { mutableStateOf("") }
 
-    // Validation states
-    var weightError by remember { mutableStateOf<String?>(null) }
-    var dimensionsError by remember { mutableStateOf<String?>(null) }
 
-    // Validate form
-    fun validateForm(): Boolean {
-        weightError = when {
-            weight.isEmpty() -> "Weight is required"
-            weight.toDoubleOrNull() == null -> "Please enter a valid number"
-            weight.toDouble() <= 0 -> "Weight must be greater than 0"
-            else -> null
-        }
-
-        dimensionsError = when {
-            dimensions.isEmpty() -> "Dimensions are required"
-            !dimensions.matches(Regex("""^\d+\s*x\s*\d+\s*x\s*\d+$""")) ->
-                "Format should be: length x width x height"
-            else -> null
-        }
-
-        val isValid = selectedCategory != null &&
-                weightError == null &&
-                dimensionsError == null &&
-                selectedTruckType != null
-
-        onFormValidityChanged(isValid)
-        return isValid
-    }
 
     Card(
         modifier = Modifier
@@ -146,8 +127,10 @@ fun ItemDetailsCard(
                     items(transportCategories) { category ->
                         CategoryChip(
                             category = category,
-                            selected = category == selectedCategory,
-                            onSelect = { selectedCategory = category }
+                            selected = category == state.selectedCategory,
+                            onSelect = {
+                                onEvent(BookingDetailsEvent.CategorySelected(category))
+                            }
                         )
                     }
                 }
@@ -156,15 +139,14 @@ fun ItemDetailsCard(
             // Weight and Dimensions Section
             FormSection(title = "Item Details") {
                 OutlinedTextField(
-                    value = weight,
+                    value = state.weight,
                     onValueChange = {
-                        weight = it
-                        validateForm()
+                        onEvent(BookingDetailsEvent.WeightChanged(it))
                     },
                     label = { Text("Weight (kg)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    isError = weightError != null,
-                    supportingText = weightError?.let { { Text(it) } },
+                    isError = state.weightError != null,
+                    supportingText = state.weightError?.let { { Text(it) } },
                     modifier = Modifier.fillMaxWidth(),
                     leadingIcon = {
                         Icon(
@@ -177,15 +159,15 @@ fun ItemDetailsCard(
                 Spacer(Modifier.height(8.dp))
 
                 OutlinedTextField(
-                    value = dimensions,
+                    value = state.dimensions,
                     onValueChange = {
-                        dimensions = it
-                        validateForm()
+                        onEvent(BookingDetailsEvent.DimensionsChanged(it))
+
                     },
                     label = { Text("Dimensions (L x W x H) cm") },
                     placeholder = { Text("100 x 50 x 75") },
-                    isError = dimensionsError != null,
-                    supportingText = dimensionsError?.let { { Text(it) } },
+                    isError = state.dimensionsError != null,
+                    supportingText = state.dimensionsError?.let { { Text(it) } },
                     modifier = Modifier.fillMaxWidth(),
                     leadingIcon = {
                         Icon(
@@ -205,8 +187,10 @@ fun ItemDetailsCard(
                     items(TruckType.entries.toList()) { truckType ->
                         VehicleTypeChip(
                             type = truckType,
-                            selected = truckType == selectedTruckType,
-                            onSelect = { selectedTruckType = truckType }
+                            selected = truckType == state.selectedTruckType,
+                            onSelect = {
+                                onEvent(BookingDetailsEvent.TruckTypeSelected(truckType))
+                            }
                         )
                     }
                 }
@@ -226,14 +210,18 @@ fun ItemDetailsCard(
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Switch(
-                        checked = specialHandling,
-                        onCheckedChange = { specialHandling = it }
+                        checked = state.specialHandling,
+                        onCheckedChange =   {
+                            onEvent(BookingDetailsEvent.SpecialHandlingChanged(it))
+                        }
                     )
                 }
 
                 OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
+                    value = state.description,
+                    onValueChange = {
+                        onEvent(BookingDetailsEvent.DescriptionChanged(it))
+                    },
                     label = { Text("Additional Notes (Optional)") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3
@@ -242,23 +230,12 @@ fun ItemDetailsCard(
 
             Button(
                 onClick = {
-                    if (validateForm()) {
-                        onDetailsSubmitted(
-                            TransportItemDetails(
-                                category = selectedCategory!!,
-                                weight = weight.toDouble(),
-                                dimensions = dimensions,
-                                truckType = selectedTruckType!!,
-                                specialHandling = specialHandling,
-                                description = description
-                            )
-                        )
-                    }
+                   onEvent(BookingDetailsEvent.Submit)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp),
-                enabled = validateForm()
+                enabled = state.isFormValid
             ) {
                 Text("Continue to Location Selection")
             }
@@ -335,7 +312,7 @@ private fun VehicleTypeChip(
     }
 }
 
-// Add these helper components and enums
+// Add these helper components and enums //TODO will use it later
 enum class BookingStep {
     LOCATION_SELECTION,
     VEHICLE_SELECTION
@@ -379,19 +356,3 @@ private fun CategoryChip(
     }
 }
 
-@Serializable
-data class TransportItemDetails(
-    val category: String,
-    val weight: Double,
-    val dimensions: String,
-    val truckType: TruckType,
-    val specialHandling: Boolean = false,
-    val description: String = ""
-)
-@Serializable
-enum class TruckType {
-    PICKUP,
-    LORRY,
-    SIXTEEN_WHEELER,
-    TRACTOR
-}
