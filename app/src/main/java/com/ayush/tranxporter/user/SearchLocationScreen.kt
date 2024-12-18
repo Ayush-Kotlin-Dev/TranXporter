@@ -30,7 +30,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +42,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
 import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsViewModel
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.model.LatLng
@@ -69,137 +70,134 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SearchLocationScreen(
-    navController: NavHostController,
-    viewModel: BookingDetailsViewModel = koinViewModel()
-) {
-    val state = viewModel.state
-    val context = LocalContext.current
-    var searchQuery by remember { mutableStateOf("") }
-    var predictions by remember { mutableStateOf<List<PlacePrediction>>(emptyList()) }
-    var isSearching by remember { mutableStateOf(false) }
-    val recentLocations = listOf(
-        SavedLocation("Home", "123, TranXporter St"),
-        SavedLocation("Work", "456, TranXporter St")
-    )
-    val scope = rememberCoroutineScope()
-    // Debounced search
-    val debouncedSearchQuery by rememberUpdatedState(searchQuery)
-    LaunchedEffect(debouncedSearchQuery) {
-        if (debouncedSearchQuery.isNotEmpty()) {
-            delay(300) // Debounce delay
-            isSearching = true
-            searchPlaces(debouncedSearchQuery, context, scope) { results ->
-                predictions = results
-                isSearching = false
-            }
-        } else {
-            predictions = emptyList()
-        }
-    }
+class SearchLocationScreen : Screen{
 
-    Scaffold(
-        modifier = Modifier.systemBarsPadding(),
-        topBar = {
-            SearchBar(
-                query = searchQuery,
-                onQueryChange = { newQuery ->
-                    searchQuery = newQuery
-                    scope.launch {
-                        searchPlaces(newQuery, context, scope) { results ->
-                            predictions = results
-                        }
-                    }
-                },
-                onNavigateBack = { navController.navigateUp() },
-                navController = navController
-            )
-        }
-    ) { padding ->
-        state.submittedDetails?.let { details ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Transport Details:",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
 
-                        Text(
-                            text = buildString {
-                                append("Vehicle Type: ${details.truckType}\n")
-                                append("Category: ${details.category}\n")
-                                append("Weight: ${details.weight} kg\n")
-                                append("Dimensions: ${details.dimensions}\n")
-                                if (details.specialHandling) {
-                                    append("Special Handling Required")
-                                }
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                    }
+    @Composable
+    override fun Content() {
+        val viewModel: BookingDetailsViewModel = koinViewModel()
+        val state = viewModel.state
+        val context = LocalContext.current
+        var searchQuery by remember { mutableStateOf("") }
+        var predictions by remember { mutableStateOf<List<PlacePrediction>>(emptyList()) }
+        var isSearching by remember { mutableStateOf(false) }
+        val recentLocations = listOf(
+            SavedLocation("Home", "123, TranXporter St"),
+            SavedLocation("Work", "456, TranXporter St")
+        )
+        val navigator = LocalNavigator.current
+
+        val scope = rememberCoroutineScope()
+        // Debounced search
+        val debouncedSearchQuery by rememberUpdatedState(searchQuery)
+        LaunchedEffect(debouncedSearchQuery) {
+            if (debouncedSearchQuery.isNotEmpty()) {
+                delay(300) // Debounce delay
+                isSearching = true
+                searchPlaces(debouncedSearchQuery, context, scope) { results ->
+                    predictions = results
+                    isSearching = false
                 }
-                if (searchQuery.isEmpty()) {
-                    // Show recent locations
-                    items(recentLocations) { location ->
-                        RecentLocationItem(
-                            location = location,
-                            onLocationClick = {
-                                navController.navigate("booking?location=${location.title}")
-                            }
-                        )
-                    }
-                } else {
-                    // Show loading indicator
-                    if (isSearching) {
-                        item {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                CircularProgressIndicator()
+            } else {
+                predictions = emptyList()
+            }
+        }
+
+        Scaffold(
+            modifier = Modifier.systemBarsPadding(),
+            topBar = {
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = { newQuery ->
+                        searchQuery = newQuery
+                        scope.launch {
+                            searchPlaces(newQuery, context, scope) { results ->
+                                predictions = results
                             }
                         }
-                    }
+                    },
+                    onNavigateBack = { navigator?.pop() },
+                )
+            }
+        ) { padding ->
+            state.submittedDetails?.let { details ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    item {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                        ) {
+                            Text(
+                                text = "Transport Details:",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
 
-                    // Show predictions
-                    items(predictions) { prediction ->
-                        PredictionItem(
-                            prediction = prediction,
-                            onPredictionClick = {
-                                // Get place details before navigating
-                                scope.launch {
-                                    val placeDetails = getPlaceDetails(prediction.placeId, context)
-                                    navController.navigate(
-                                        "booking?location=${prediction.description}" +
-                                                "&lat=${placeDetails?.latitude ?: 0.0}" +
-                                                "&lng=${placeDetails?.longitude ?: 0.0}"
-                                    )
+                            Text(
+                                text = buildString {
+                                    append("Vehicle Type: ${details.truckType}\n")
+                                    append("Category: ${details.category}\n")
+                                    append("Weight: ${details.weight} kg\n")
+                                    append("Dimensions: ${details.dimensions}\n")
+                                    if (details.specialHandling) {
+                                        append("Special Handling Required")
+                                    }
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                    }
+                    if (searchQuery.isEmpty()) {
+                        // Show recent locations
+                        items(recentLocations) { location ->
+                            RecentLocationItem(
+                                location = location,
+                                onLocationClick = {
+
+                                }
+                            )
+                        }
+                    } else {
+                        // Show loading indicator
+                        if (isSearching) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator()
                                 }
                             }
-                        )
+                        }
+
+                        // Show predictions
+                        items(predictions) { prediction ->
+                            PredictionItem(
+                                prediction = prediction,
+                                onPredictionClick = {
+                                    scope.launch {
+                                        val placeDetails = getPlaceDetails(prediction.placeId, context)
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
-            }
-        } ?: run {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("No transport details available")
+            } ?: run {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No transport details available")
+                }
             }
         }
     }
@@ -211,15 +209,15 @@ private fun SearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onNavigateBack: () -> Unit,
-    navController: NavHostController
 ) {
+    val navigator = LocalNavigator.current
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .clickable {
                 // Navigate to LocationSelectionScreen when clicked
-                navController.navigate("locationSelection")
+                navigator?.push(LocationSelectionScreen())
             },
         shape = RoundedCornerShape(28.dp),
         color = MaterialTheme.colorScheme.surface,

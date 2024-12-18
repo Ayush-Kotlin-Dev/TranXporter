@@ -4,6 +4,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,13 +12,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -42,44 +47,71 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import com.ayush.tranxporter.R
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils
-import com.google.accompanist.pager.ExperimentalPagerApi
-import com.google.accompanist.pager.HorizontalPager
-import com.google.accompanist.pager.HorizontalPagerIndicator
-import com.google.accompanist.pager.PagerState
-import com.google.accompanist.pager.rememberPagerState
 import kotlinx.coroutines.launch
 
 data class OnboardingScreen(
-    val onFinishOnboarding: () -> Unit
+    @Transient val onFinishOnboarding: () -> Unit
 ) : Screen {
-
     @Composable
     override fun Content() {
-        val pagerState = rememberPagerState()
-        TopSection(
-            pagerState = pagerState,
-            onSkipClick = onFinishOnboarding
-        )
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            HorizontalPager(
-                count = 3,
-                state = pagerState,
-                modifier = Modifier.weight(1f)
-            ) { page ->
-                PagerScreen(page = page)
-            }
+        Box(modifier = Modifier.fillMaxSize()) {  // Wrap in Box for better layout control
+            val pagerState = rememberPagerState(pageCount = { PAGE_COUNT })
 
-            BottomSection(
-                pagerState = pagerState,
-                onFinishClick = onFinishOnboarding
-            )
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                TopSection(
+                    pagerState = pagerState,
+                    onSkipClick = onFinishOnboarding
+                )
+
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.weight(1f)
+                ) { page ->
+                    PagerScreen(
+                        onboardingPage = OnboardingPage.values()[page],
+                        onFinishClick = onFinishOnboarding
+                    )
+                }
+
+                BottomSection(
+                    pagerState = pagerState,
+                    onFinishClick = onFinishOnboarding
+                )
+            }
+        }
+    }
+
+    companion object {
+        private const val PAGE_COUNT = 3
+    }
+}
+// Create an enum to manage pages
+private enum class OnboardingPage {
+    WELCOME,
+    PERMISSIONS,
+    REGISTER
+}
+@Composable
+private fun PagerScreen(
+    onboardingPage: OnboardingPage,
+    onFinishClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        when (onboardingPage) {
+            OnboardingPage.WELCOME -> WelcomePage()
+            OnboardingPage.PERMISSIONS -> PermissionsPage()
+            OnboardingPage.REGISTER -> RegisterPage(onFinishClick)
         }
     }
 }
-
-@OptIn(ExperimentalPagerApi::class)
 @Composable
 fun TopSection(
     pagerState: PagerState,
@@ -97,23 +129,6 @@ fun TopSection(
             TextButton(onClick = onSkipClick) {
                 Text("Skip")
             }
-        }
-    }
-}
-
-@Composable
-fun PagerScreen(page: Int) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        when (page) {
-            0 -> WelcomePage()
-            1 -> PermissionsPage()
-            2 -> RegisterPage()
         }
     }
 }
@@ -253,7 +268,9 @@ fun PermissionItemWithChip(
 }
 
 @Composable
-fun RegisterPage() {
+fun RegisterPage(
+    onFinishClick: () -> Unit
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(24.dp)
@@ -277,7 +294,9 @@ fun RegisterPage() {
         )
 
         Button(
-            onClick = { /* Navigate to Auth Screen */ },
+            onClick = { 
+                onFinishClick()
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 32.dp)
@@ -287,43 +306,7 @@ fun RegisterPage() {
     }
 }
 
-@Composable
-fun PermissionItem(
-    title: String,
-    description: String,
-    icon: Int
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            painter = painterResource(id = icon),
-            contentDescription = title,
-            modifier = Modifier.size(40.dp),
-            tint = MaterialTheme.colorScheme.primary
-        )
 
-        Spacer(modifier = Modifier.width(16.dp))
-
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalPagerApi::class)
 @Composable
 fun BottomSection(
     pagerState: PagerState,
@@ -335,14 +318,30 @@ fun BottomSection(
             .fillMaxWidth()
             .padding(12.dp)
     ) {
-        // Pager indicator
-        HorizontalPagerIndicator(
-            pagerState = pagerState,
-            modifier = Modifier.align(Alignment.Center),
-            activeColor = MaterialTheme.colorScheme.primary
-        )
+        Row(
+            Modifier
+                .align(Alignment.Center)
+                .height(50.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            repeat(pagerState.pageCount) { iteration ->
+                val color = if (pagerState.currentPage == iteration)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
 
-        // Next/Finish button
+                Box(
+                    modifier = Modifier
+                        .padding(2.dp)
+                        .size(8.dp)
+                        .background(
+                            color = color,
+                            shape = CircleShape
+                        )
+                )
+            }
+        }
+
         FloatingActionButton(
             onClick = {
                 if (pagerState.currentPage == 2) onFinishClick()
@@ -354,8 +353,8 @@ fun BottomSection(
         ) {
             Icon(
                 imageVector = if (pagerState.currentPage == 2)
-                    Icons.Default.KeyboardArrowRight
-                else Icons.Default.KeyboardArrowLeft,
+                    Icons.Default.Check
+                else Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = if (pagerState.currentPage == 2) "Finish" else "Next"
             )
         }

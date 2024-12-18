@@ -67,12 +67,13 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
+import com.ayush.tranxporter.auth.presentation.service_selection.ServiceSelectionScreen
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
-data class AuthScreen(
-    val onAuthenticated: () -> Unit,
-) : Screen {
+class AuthScreen : Screen {
 
     @Composable
     override fun Content() {
@@ -83,6 +84,7 @@ data class AuthScreen(
         val focusRequesters = remember { List(6) { FocusRequester() } }
         val focusManager = LocalFocusManager.current
         val keyboardManager = LocalSoftwareKeyboardController.current
+        val navigator = LocalNavigator.currentOrThrow
 
         LaunchedEffect(state.otpState.focusedIndex) {
             state.otpState.focusedIndex?.let { index ->
@@ -102,7 +104,10 @@ data class AuthScreen(
         // Handle authentication success
         LaunchedEffect(state.isAuthenticated) {
             if (state.isAuthenticated) {
-                onAuthenticated()
+                navigator.replaceAll(
+                    ServiceSelectionScreen()
+                )
+
             }
         }
 
@@ -447,6 +452,7 @@ fun OtpInput(
                                 focusRequesters[action.index].freeFocus()
                             }
                         }
+
                         else -> Unit
                     }
                     viewModel.onEvent(AuthEvent.OnOtpAction(action))

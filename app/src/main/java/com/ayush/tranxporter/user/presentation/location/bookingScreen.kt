@@ -1,7 +1,6 @@
 package com.ayush.tranxporter.user.presentation.location
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.util.Log
 import android.widget.Toast
 import androidx.annotation.DrawableRes
@@ -61,7 +60,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation.NavHostController
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
 import com.ayush.tranxporter.R
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils.getAddressFromLocation
 import com.ayush.tranxporter.utils.VibratorService
@@ -87,45 +87,48 @@ import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import org.koin.compose.viewmodel.koinViewModel
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
-@Composable
-fun BookingScreen(
-    navController: NavHostController,
-    initialPickup: LatLng? = null,
-    initialDropoff: LatLng? = null,
-    locationType: String? = null,
-    viewModel: LocationSelectionViewModel
-) {
-    val permissionState = rememberMultiplePermissionsState(
-        listOf(
-            Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.ACCESS_COARSE_LOCATION
+data class BookingScreen(
+    val initialPickup: LatLng? = null,
+    val initialDropoff: LatLng? = null,
+    val locationType: String? = null
+) : Screen {
+    @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
+    @Composable
+    override fun Content() {
+        val navigator = LocalNavigator.current
+        val viewModel: LocationSelectionViewModel = koinViewModel()
+
+        val permissionState = rememberMultiplePermissionsState(
+            listOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
         )
-    )
-    val context = LocalContext.current
+        val context = LocalContext.current
 
-    val coroutineScope = rememberCoroutineScope()
-    val cameraPositionState = rememberCameraPositionState()
-    var currentLocation by remember { mutableStateOf<LatLng?>(null) }
+        val coroutineScope = rememberCoroutineScope()
+        val cameraPositionState = rememberCameraPositionState()
+        var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
 
-    var pickupLocation by remember(viewModel.pickupLocation) {
-        mutableStateOf(viewModel.pickupLocation?.latLng)
-    }
-    var dropOffLocation by remember(viewModel.dropLocation) {
-        mutableStateOf(viewModel.dropLocation?.latLng)
-    }
-    val fusedLocationClient = remember {
-        LocationServices.getFusedLocationProviderClient(context)
-    }
-    var travelTime by remember { mutableStateOf<String?>(null) }
-    var routePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
+        var pickupLocation by remember(viewModel.pickupLocation) {
+            mutableStateOf(viewModel.pickupLocation?.latLng)
+        }
+        var dropOffLocation by remember(viewModel.dropLocation) {
+            mutableStateOf(viewModel.dropLocation?.latLng)
+        }
+        val fusedLocationClient = remember {
+            LocationServices.getFusedLocationProviderClient(context)
+        }
+        var travelTime by remember { mutableStateOf<String?>(null) }
+        var routePoints by remember { mutableStateOf<List<LatLng>>(emptyList()) }
 
-    val scope = rememberCoroutineScope()
-    var hasAnimatedToInitialLocation by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        var hasAnimatedToInitialLocation by remember { mutableStateOf(false) }
 
 
 //    LaunchedEffect(Unit) {
@@ -161,75 +164,88 @@ fun BookingScreen(
 //        }
 //    }
 
-    var drivingDistance by remember { mutableStateOf<Double?>(null) }
+        var drivingDistance by remember { mutableStateOf<Double?>(null) }
 
 // Add this effect to fetch route points when locations change
-    var smallTruckFare by remember { mutableStateOf<Double?>(null) }
-    var largeTruckFare by remember { mutableStateOf<Double?>(null) }
+        var smallTruckFare by remember { mutableStateOf<Double?>(null) }
+        var largeTruckFare by remember { mutableStateOf<Double?>(null) }
 
 // Update the LaunchedEffect that handles distance and fare calculations
-    LaunchedEffect(pickupLocation, dropOffLocation) {
-        if (pickupLocation != null && dropOffLocation != null) {
-            try {
-                // Reset values while calculating
-                drivingDistance = null
-                smallTruckFare = null
-                largeTruckFare = null
+        LaunchedEffect(pickupLocation, dropOffLocation) {
+            if (pickupLocation != null && dropOffLocation != null) {
+                try {
+                    // Reset values while calculating
+                    drivingDistance = null
+                    smallTruckFare = null
+                    largeTruckFare = null
 
-                // Get route points and distance
-                val points = getRoutePoints(pickupLocation!!, dropOffLocation!!)
-                routePoints = points
+                    // Get route points and distance
+                    val points = getRoutePoints(pickupLocation!!, dropOffLocation!!)
+                    routePoints = points
 
-                // Get driving distance first
-                drivingDistance = getDrivingDistance(pickupLocation!!, dropOffLocation!!)
+                    // Get driving distance first
+                    drivingDistance = getDrivingDistance(pickupLocation!!, dropOffLocation!!)
 
-                // Only calculate fares if we have a valid distance
-                if (drivingDistance != null) {
-                    // Calculate fares
-                    smallTruckFare = calculateFare(
-                        pickupLocation!!,
-                        dropOffLocation!!,
-                        VehicleType.SMALL_TRUCK
-                    )
-                    largeTruckFare = calculateFare(
-                        pickupLocation!!,
-                        dropOffLocation!!,
-                        VehicleType.LARGE_TRUCK
-                    )
+                    // Only calculate fares if we have a valid distance
+                    if (drivingDistance != null) {
+                        // Calculate fares
+                        smallTruckFare = calculateFare(
+                            pickupLocation!!,
+                            dropOffLocation!!,
+                            VehicleType.SMALL_TRUCK
+                        )
+                        largeTruckFare = calculateFare(
+                            pickupLocation!!,
+                            dropOffLocation!!,
+                            VehicleType.LARGE_TRUCK
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e("Route", "Failed to get route or calculate fare", e)
+                    // Handle error state here if needed
                 }
-            } catch (e: Exception) {
-                Log.e("Route", "Failed to get route or calculate fare", e)
-                // Handle error state here if needed
             }
         }
-    }
 
 
 
-    LaunchedEffect(pickupLocation, dropOffLocation) {
-        if (pickupLocation != null && dropOffLocation != null) {
-            travelTime = getTravelTime(pickupLocation!!, dropOffLocation!!)
+        LaunchedEffect(pickupLocation, dropOffLocation) {
+            if (pickupLocation != null && dropOffLocation != null) {
+                travelTime = getTravelTime(pickupLocation!!, dropOffLocation!!)
+            }
         }
-    }
 
-    LaunchedEffect(Unit) {
-        if (!hasAnimatedToInitialLocation) {
-            try {
-                if (permissionState.allPermissionsGranted) {
-                    val location = fusedLocationClient.lastLocation.await()
-                    location?.let {
-                        val initialLatLng = LatLng(it.latitude, it.longitude)
+        LaunchedEffect(Unit) {
+            if (!hasAnimatedToInitialLocation) {
+                try {
+                    if (permissionState.allPermissionsGranted) {
+                        val location = fusedLocationClient.lastLocation.await()
+                        location?.let {
+                            val initialLatLng = LatLng(it.latitude, it.longitude)
+                            cameraPositionState.animate(
+                                update = CameraUpdateFactory.newLatLngZoom(
+                                    initialLatLng,
+                                    15f
+                                ),
+                                durationMs = 1000
+                            )
+                            hasAnimatedToInitialLocation = true
+                        }
+                    } else {
+                        // If no permission, animate to a default location in India
+                        val defaultLocation = LatLng(20.5937, 78.9629) // Center of India
                         cameraPositionState.animate(
                             update = CameraUpdateFactory.newLatLngZoom(
-                                initialLatLng,
-                                15f
+                                defaultLocation,
+                                5f
                             ),
                             durationMs = 1000
                         )
                         hasAnimatedToInitialLocation = true
                     }
-                } else {
-                    // If no permission, animate to a default location in India
+                } catch (e: Exception) {
+                    Log.e("Location", "Error getting initial location", e)
+                    // Animate to default location in case of error
                     val defaultLocation = LatLng(20.5937, 78.9629) // Center of India
                     cameraPositionState.animate(
                         update = CameraUpdateFactory.newLatLngZoom(
@@ -240,142 +256,131 @@ fun BookingScreen(
                     )
                     hasAnimatedToInitialLocation = true
                 }
-            } catch (e: Exception) {
-                Log.e("Location", "Error getting initial location", e)
-                // Animate to default location in case of error
-                val defaultLocation = LatLng(20.5937, 78.9629) // Center of India
-                cameraPositionState.animate(
-                    update = CameraUpdateFactory.newLatLngZoom(
-                        defaultLocation,
-                        5f
-                    ),
-                    durationMs = 1000
-                )
-                hasAnimatedToInitialLocation = true
             }
         }
-    }
 
-    // Update the existing LaunchedEffect for permission state
-    LaunchedEffect(permissionState.allPermissionsGranted) {
-        if (permissionState.allPermissionsGranted &&
-            viewModel.isUsingCurrentLocation &&
-            viewModel.pickupLocation == null &&
-            locationType?.lowercase() != "drop"
-        ) {
-            try {
-                val location = fusedLocationClient.lastLocation.await()
-                location?.let {
-                    currentLocation = LatLng(it.latitude, it.longitude)
-                    val address = getAddressFromLocation(context, currentLocation!!)
-                    viewModel.updateCurrentLocation(currentLocation!!, address)
-                    if (!hasAnimatedToInitialLocation) {
+        // Update the existing LaunchedEffect for permission state
+        LaunchedEffect(permissionState.allPermissionsGranted) {
+            if (permissionState.allPermissionsGranted &&
+                viewModel.isUsingCurrentLocation &&
+                viewModel.pickupLocation == null &&
+                locationType?.lowercase() != "drop"
+            ) {
+                try {
+                    val location = fusedLocationClient.lastLocation.await()
+                    location?.let {
+                        currentLocation = LatLng(it.latitude, it.longitude)
+                        val address = getAddressFromLocation(context, currentLocation!!)
+                        viewModel.updateCurrentLocation(currentLocation!!, address)
+                        if (!hasAnimatedToInitialLocation) {
+                            cameraPositionState.animate(
+                                CameraUpdateFactory.newLatLngZoom(currentLocation!!, 15f),
+                                durationMs = 1000
+                            )
+                            hasAnimatedToInitialLocation = true
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("Location", "Error getting current location", e)
+                    Toast.makeText(
+                        context,
+                        "Unable to get current location",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+
+        // Add a check for initial locations from navigation
+        LaunchedEffect(initialPickup, initialDropoff) {
+            when {
+                initialPickup != null && initialDropoff != null -> {
+                    try {
+                        val points = getRoutePoints(initialPickup, initialDropoff)
+                        routePoints = points
+                        travelTime = getTravelTime(initialPickup, initialDropoff)
+
+                        val bounds = LatLngBounds.builder()
+                            .include(initialPickup)
+                            .include(initialDropoff)
+                            .build()
                         cameraPositionState.animate(
-                            CameraUpdateFactory.newLatLngZoom(currentLocation!!, 15f),
+                            CameraUpdateFactory.newLatLngBounds(bounds, 100),
                             durationMs = 1000
                         )
                         hasAnimatedToInitialLocation = true
+                    } catch (e: Exception) {
+                        Log.e("Route", "Failed to initialize route", e)
                     }
                 }
-            } catch (e: Exception) {
-                Log.e("Location", "Error getting current location", e)
-                Toast.makeText(
-                    context,
-                    "Unable to get current location",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-    }
 
-    // Add a check for initial locations from navigation
-    LaunchedEffect(initialPickup, initialDropoff) {
-        when {
-            initialPickup != null && initialDropoff != null -> {
-                try {
-                    val points = getRoutePoints(initialPickup, initialDropoff)
-                    routePoints = points
-                    travelTime = getTravelTime(initialPickup, initialDropoff)
-
-                    val bounds = LatLngBounds.builder()
-                        .include(initialPickup)
-                        .include(initialDropoff)
-                        .build()
+                initialPickup != null -> {
                     cameraPositionState.animate(
-                        CameraUpdateFactory.newLatLngBounds(bounds, 100),
+                        CameraUpdateFactory.newLatLngZoom(initialPickup, 15f),
                         durationMs = 1000
                     )
                     hasAnimatedToInitialLocation = true
-                } catch (e: Exception) {
-                    Log.e("Route", "Failed to initialize route", e)
+                }
+
+                initialDropoff != null -> {
+                    cameraPositionState.animate(
+                        CameraUpdateFactory.newLatLngZoom(initialDropoff, 15f),
+                        durationMs = 1000
+                    )
+                    hasAnimatedToInitialLocation = true
                 }
             }
-            initialPickup != null -> {
+        }
+        LaunchedEffect(routePoints) {
+            if (routePoints.isNotEmpty()) {
+                val bounds = LatLngBounds.builder().apply {
+                    routePoints.forEach { include(it) }
+                }.build()
                 cameraPositionState.animate(
-                    CameraUpdateFactory.newLatLngZoom(initialPickup, 15f),
-                    durationMs = 1000
+                    CameraUpdateFactory.newLatLngBounds(bounds, 100)
                 )
-                hasAnimatedToInitialLocation = true
-            }
-            initialDropoff != null -> {
-                cameraPositionState.animate(
-                    CameraUpdateFactory.newLatLngZoom(initialDropoff, 15f),
-                    durationMs = 1000
-                )
-                hasAnimatedToInitialLocation = true
             }
         }
-    }
-    LaunchedEffect(routePoints) {
-        if (routePoints.isNotEmpty()) {
-            val bounds = LatLngBounds.builder().apply {
-                routePoints.forEach { include(it) }
-            }.build()
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngBounds(bounds, 100)
-            )
-        }
-    }
 
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = if (pickupLocation == null) "Select Pickup" else "Select Drop-off",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = if (pickupLocation == null) "Select Pickup" else "Select Drop-off",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            IconButton(
+                                onClick = { /* Enable location edit */ },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Edit,
+                                    contentDescription = "Edit location",
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                    },
+                    navigationIcon = {
                         IconButton(
-                            onClick = { /* Enable location edit */ },
-                            modifier = Modifier.size(24.dp)
+                            onClick = { navigator?.pop() },
+                            modifier = Modifier.padding(start = 8.dp)
                         ) {
                             Icon(
-                                Icons.Default.Edit,
-                                contentDescription = "Edit location",
-                                modifier = Modifier.size(20.dp)
+                                Icons.Default.ArrowBack,
+                                contentDescription = "Back",
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = { navController.navigateUp() },
-                        modifier = Modifier.padding(start = 8.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
-            )
-        },
+                )
+            },
 //        floatingActionButton = {
 //            if (pickupLocation != null && dropOffLocation != null) {
 //                FloatingActionButton(
@@ -386,189 +391,193 @@ fun BookingScreen(
 //                }
 //            }
 //        }
-    ) { paddingValues ->
-        if (permissionState.allPermissionsGranted) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(paddingValues)
-            ) {
-                GoogleMap(
-                    modifier = Modifier.fillMaxSize(),
-                    cameraPositionState = cameraPositionState,
-                    properties = MapProperties(isMyLocationEnabled = true),
-                    uiSettings = MapUiSettings(myLocationButtonEnabled = false),
-                    onMapClick = { latLng ->
-                        scope.launch {
-                            val address = getAddressFromLocation(context, latLng)
-                            when (locationType?.lowercase()) {
-                                "pickup" -> {
-                                    viewModel.setPickupLocation(latLng, address)
-                                    navController.navigateUp()
-                                }
+        ) { paddingValues ->
+            if (permissionState.allPermissionsGranted) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                ) {
+                    GoogleMap(
+                        modifier = Modifier.fillMaxSize(),
+                        cameraPositionState = cameraPositionState,
+                        properties = MapProperties(isMyLocationEnabled = true),
+                        uiSettings = MapUiSettings(myLocationButtonEnabled = false),
+                        onMapClick = { latLng ->
+                            scope.launch {
+                                val address = getAddressFromLocation(context, latLng)
+                                when (locationType?.lowercase()) {
+                                    "pickup" -> {
+                                        viewModel.setPickupLocation(latLng, address)
+                                        navigator?.pop()
+                                    }
 
-                                "drop" -> {
-                                    viewModel.setDropLocation(latLng, address)
-                                    navController.navigateUp()
-                                }
+                                    "drop" -> {
+                                        viewModel.setDropLocation(latLng, address)
+                                        navigator?.pop()
+                                    }
 
-                                else -> {
-                                    // Normal booking flow
-                                    when {
-                                        viewModel.pickupLocation == null -> {
-                                            viewModel.setPickupLocation(latLng, address)
-                                        }
+                                    else -> {
+                                        // Normal booking flow
+                                        when {
+                                            viewModel.pickupLocation == null -> {
+                                                viewModel.setPickupLocation(latLng, address)
+                                            }
 
-                                        viewModel.dropLocation == null -> {
-                                            viewModel.setDropLocation(latLng, address)
+                                            viewModel.dropLocation == null -> {
+                                                viewModel.setDropLocation(latLng, address)
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                ) {
-                    pickupLocation?.let {
-                        Marker(
-                            state = MarkerState(position = it),
-                            title = "Pickup Location",
-                            snippet = "Tap to change",
-                            onInfoWindowClick = {
-                                viewModel.setPickupLocation(
-                                    null,
-                                    ""
-                                ) // Add this method to ViewModel
-                                pickupLocation = null
-                            }
-                        )
-                    }
-                    dropOffLocation?.let {
-                        Marker(
-                            state = MarkerState(position = it),
-                            title = "Drop-off Location",
-                            snippet = "Tap to change",
-                            onInfoWindowClick = {
-                                viewModel.setDropLocation(null, "") // Add this method to ViewModel
-                                dropOffLocation = null
-                            }
-                        )
-                    }
-                    // Inside GoogleMap composable
-                    if (routePoints.isNotEmpty()) {
-                        Polyline(
-                            points = routePoints,
-                            color = Color.Blue,
-                            width = 4f,
-                            pattern = listOf(
-                                Dot(),
-                                Gap(10f)
-                            )
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(
-                            end = 16.dp,
-                            bottom = 96.dp
-                        ),  // Adjust bottom padding based on your UI
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    FloatingActionButton(
-                        onClick = {
-                            // Get current location and animate camera
-                            scope.launch {
-                                try {
-                                    val fusedLocationClient =
-                                        LocationServices.getFusedLocationProviderClient(context)
-                                    val location = fusedLocationClient.lastLocation.await()
-                                    location?.let {
-                                        val cameraPosition = CameraPosition.Builder()
-                                            .target(LatLng(it.latitude, it.longitude))
-                                            .zoom(15f)
-                                            .build()
-                                        cameraPositionState.animate(
-                                            update = CameraUpdateFactory.newCameraPosition(
-                                                cameraPosition
-                                            ),
-                                            durationMs = 500
-                                        )
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e("Location", "Error getting location", e)
-                                    // Optionally show error message to user
-                                    Toast.makeText(
-                                        context,
-                                        "Unable to get current location",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        },
-                        modifier = Modifier.size(40.dp),
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        elevation = FloatingActionButtonDefaults.elevation(
-                            defaultElevation = 6.dp
-                        )
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.location),
-                            contentDescription = "My Location",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-
-                // Instructions Overlay
-                if (pickupLocation == null || dropOffLocation == null) {
-                    val instruction = when {
-                        pickupLocation == null -> "Tap on the map to select your pickup location."
-                        dropOffLocation == null -> "Tap on the map to select your drop-off location."
-                        else -> ""
+                        pickupLocation?.let {
+                            Marker(
+                                state = MarkerState(position = it),
+                                title = "Pickup Location",
+                                snippet = "Tap to change",
+                                onInfoWindowClick = {
+                                    viewModel.setPickupLocation(
+                                        null,
+                                        ""
+                                    ) // Add this method to ViewModel
+                                    pickupLocation = null
+                                }
+                            )
+                        }
+                        dropOffLocation?.let {
+                            Marker(
+                                state = MarkerState(position = it),
+                                title = "Drop-off Location",
+                                snippet = "Tap to change",
+                                onInfoWindowClick = {
+                                    viewModel.setDropLocation(
+                                        null,
+                                        ""
+                                    ) // Add this method to ViewModel
+                                    dropOffLocation = null
+                                }
+                            )
+                        }
+                        // Inside GoogleMap composable
+                        if (routePoints.isNotEmpty()) {
+                            Polyline(
+                                points = routePoints,
+                                color = Color.Blue,
+                                width = 4f,
+                                pattern = listOf(
+                                    Dot(),
+                                    Gap(10f)
+                                )
+                            )
+                        }
                     }
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopCenter)
-                            .padding(paddingValues)
+                            .fillMaxSize()
+                            .padding(
+                                end = 16.dp,
+                                bottom = 96.dp
+                            ),  // Adjust bottom padding based on your UI
+                        contentAlignment = Alignment.CenterEnd
                     ) {
-                        Text(
-                            text = instruction,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                        FloatingActionButton(
+                            onClick = {
+                                // Get current location and animate camera
+                                scope.launch {
+                                    try {
+                                        val fusedLocationClient =
+                                            LocationServices.getFusedLocationProviderClient(context)
+                                        val location = fusedLocationClient.lastLocation.await()
+                                        location?.let {
+                                            val cameraPosition = CameraPosition.Builder()
+                                                .target(LatLng(it.latitude, it.longitude))
+                                                .zoom(15f)
+                                                .build()
+                                            cameraPositionState.animate(
+                                                update = CameraUpdateFactory.newCameraPosition(
+                                                    cameraPosition
+                                                ),
+                                                durationMs = 500
+                                            )
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.e("Location", "Error getting location", e)
+                                        // Optionally show error message to user
+                                        Toast.makeText(
+                                            context,
+                                            "Unable to get current location",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(40.dp),
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            elevation = FloatingActionButtonDefaults.elevation(
+                                defaultElevation = 6.dp
+                            )
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.location),
+                                contentDescription = "My Location",
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
+                    // Instructions Overlay
+                    if (pickupLocation == null || dropOffLocation == null) {
+                        val instruction = when {
+                            pickupLocation == null -> "Tap on the map to select your pickup location."
+                            dropOffLocation == null -> "Tap on the map to select your drop-off location."
+                            else -> ""
+                        }
+                        Box(
                             modifier = Modifier
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
-                                .padding(8.dp)
-                        )
+                                .fillMaxWidth()
+                                .align(Alignment.TopCenter)
+                                .padding(paddingValues)
+                        ) {
+                            Text(
+                                text = instruction,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
+                                    .padding(8.dp)
+                            )
+                        }
+                    }
+
+                    // Combined bottom card UI
+                    if (pickupLocation != null && dropOffLocation != null) {
+
+
+                        Box(
+                            modifier = Modifier.align(Alignment.BottomCenter),
+                            contentAlignment = Alignment.BottomCenter
+                        ) {
+                            VehicleSelectionCard(
+                                drivingDistance = drivingDistance,
+                                travelTime = travelTime,
+                                smallTruckFare = smallTruckFare,
+                                largeTruckFare = largeTruckFare,
+                                onBack = {
+                                    viewModel.setDropLocation(null, "")
+                                    dropOffLocation = null
+                                }
+                            )
+                        }
+
+
                     }
                 }
 
-                // Combined bottom card UI
-                if (pickupLocation != null && dropOffLocation != null) {
-
-
-                    Box(
-                        modifier = Modifier.align(Alignment.BottomCenter),
-                        contentAlignment = Alignment.BottomCenter
-                    ){
-                        VehicleSelectionCard(
-                            drivingDistance = drivingDistance,
-                            travelTime = travelTime,
-                            smallTruckFare = smallTruckFare,
-                            largeTruckFare = largeTruckFare,
-                            onBack = {
-                                viewModel.setDropLocation(null, "")
-                                dropOffLocation = null
-                            }
-                        )
-                    }
-
-
-                }
             }
-
         }
     }
 }

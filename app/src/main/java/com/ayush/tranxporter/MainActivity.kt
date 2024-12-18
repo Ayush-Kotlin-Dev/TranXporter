@@ -1,7 +1,5 @@
 package com.ayush.tranxporter
 
-import android.annotation.SuppressLint
-import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -31,34 +29,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.navigation.NavController
-import androidx.navigation.NavType
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
+import cafe.adriel.voyager.core.screen.Screen
+import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import com.ayush.tranxporter.auth.presentation.login.AuthScreen
-import com.ayush.tranxporter.auth.presentation.service_selection.ServiceSelectionScreen
-import com.ayush.tranxporter.auth.presentation.service_selection.UserDetailsScreen
-import com.ayush.tranxporter.core.components.UserType
 import com.ayush.tranxporter.core.domain.model.AppState
 import com.ayush.tranxporter.core.presentation.onboard.OnboardingScreen
 import com.ayush.tranxporter.driver.DriverScreen
 import com.ayush.tranxporter.ui.theme.TranXporterTheme
-import com.ayush.tranxporter.user.presentation.location.BookingScreen
-import com.ayush.tranxporter.user.LocationSelectionScreen
-import com.ayush.tranxporter.user.SearchLocationScreen
 import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsScreen
-import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsViewModel
-import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
-import com.ayush.tranxporter.user.presentation.location.LocationSelectionViewModel
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
-import com.google.android.gms.maps.model.LatLng
 import com.google.firebase.auth.FirebaseAuth
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.koin.androidx.compose.koinViewModel
 
 class MainActivity : ComponentActivity() {
@@ -75,208 +57,99 @@ class MainActivity : ComponentActivity() {
                     AppState.NeedsOnboarding -> {
                         Navigator(OnboardingScreen(viewModel::completeOnboarding))
                     }
-                    AppState.Ready -> MainScreen()
+
+                    AppState.Ready -> {
+                        Navigator(
+                             if (FirebaseAuth.getInstance().currentUser == null) {
+                                AuthScreen()
+                            } else {
+                                HomeScreen()
+                             }
+                        )
+                    }
                 }
             }
         }
     }
 }
 
-@SuppressLint("UnrememberedGetBackStackEntry")
-@Composable
-fun MainScreen() {
-    val navController = rememberNavController()
-    val auth = FirebaseAuth.getInstance()
-    val currentUser = auth.currentUser
 
-    val viewModel: LocationSelectionViewModel = viewModel(
-        factory = LocationSelectionViewModel.Factory
-    )
-    val bookingDetailsViewModel: BookingDetailsViewModel = koinViewModel()
+class HomeScreen : Screen {
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    override fun Content() {
 
+        val systemUiController = rememberSystemUiController()
+        val primaryContainer = MaterialTheme.colorScheme.primaryContainer
+        val isDarkIcons = MaterialTheme.colorScheme.primary.luminance() > 0.5
+        val navigator = LocalNavigator.currentOrThrow
 
-    NavHost(
-        navController = navController,
-        startDestination = if (currentUser != null) "home" else "auth"
-    ) {
-        composable("auth") {
-            Navigator(AuthScreen {
-                // Navigate to service selection after auth
-                navController.navigate("service_selection") {
-                    popUpTo("auth") { inclusive = true }
-                }
-            })
-        }
-        composable("service_selection") {
-            ServiceSelectionScreen { userType ->
-                navController.navigate("user_details/${userType.name}")
-            }
-        }
-        composable(
-            "user_details/{type}",
-            arguments = listOf(navArgument("type") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val userType = UserType.valueOf(
-                backStackEntry.arguments?.getString("type") ?: UserType.CONSUMER.name
-            )
-            UserDetailsScreen(
-                userType = userType,
-                onDetailsSubmitted = {
-                    // Navigate to home screen after details are submitted
-                    navController.navigate("home") {
-                        popUpTo("auth") { inclusive = true }
-                    }
-                }
-            )
-        }
-        composable("home") {
-            HomeScreen(navController)
-        }
-        composable("booking") {
-            BookingScreen(navController, viewModel = viewModel)
-        }
-
-        composable("locationSelection") {
-            LocationSelectionScreen(navController, viewModel = viewModel)
-        }
-        composable("booking_details") {
-            BookingDetailsScreen(
-                navController = navController,
-                viewModel = bookingDetailsViewModel,
-                onDetailsSubmitted = {
-                    navController.navigate("search_location")
-                }
+        SideEffect {
+            systemUiController.setStatusBarColor(
+                color = primaryContainer,
+                darkIcons = isDarkIcons
             )
         }
 
-        composable("search_location") {
-            SearchLocationScreen(
-                navController = navController,
-                viewModel = bookingDetailsViewModel
-            )
-        }
-        composable("driver") {
-            DriverScreen()
-        }
-        composable(
-            "booking?type={type}&pickup_lat={pickup_lat}&pickup_lng={pickup_lng}&drop_lat={drop_lat}&drop_lng={drop_lng}",
-            arguments = listOf(
-                navArgument("type") {
-                    type = NavType.StringType
-                    nullable = true
-                    defaultValue = null
-                },
-                navArgument("pickup_lat") {
-                    type = NavType.FloatType
-                    defaultValue = 0f
-                },
-                navArgument("pickup_lng") {
-                    type = NavType.FloatType
-                    defaultValue = 0f
-                },
-                navArgument("drop_lat") {
-                    type = NavType.FloatType
-                    defaultValue = 0f
-                },
-                navArgument("drop_lng") {
-                    type = NavType.FloatType
-                    defaultValue = 0f
-                }
-            )
-        ) { backStackEntry ->
-            val args = backStackEntry.arguments
-            val type = args?.getString("type")
-            val pickupLat = args?.getFloat("pickup_lat") ?: 0f
-            val pickupLng = args?.getFloat("pickup_lng") ?: 0f
-            val dropLat = args?.getFloat("drop_lat") ?: 0f
-            val dropLng = args?.getFloat("drop_lng") ?: 0f
-
-            BookingScreen(
-                navController = navController,
-                initialPickup = if (pickupLat != 0f && pickupLng != 0f)
-                    LatLng(pickupLat.toDouble(), pickupLng.toDouble()) else null,
-                initialDropoff = if (dropLat != 0f && dropLng != 0f)
-                    LatLng(dropLat.toDouble(), dropLng.toDouble()) else null,
-                locationType = type,
-                viewModel = viewModel
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun HomeScreen(navController: NavController) {
-    val systemUiController = rememberSystemUiController()
-    val primaryContainer = MaterialTheme.colorScheme.primaryContainer
-    val isDarkIcons = MaterialTheme.colorScheme.primary.luminance() > 0.5
-
-    SideEffect {
-        systemUiController.setStatusBarColor(
-            color = primaryContainer,
-            darkIcons = isDarkIcons
-        )
-    }
-
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "TranXporter",
-                        style = MaterialTheme.typography.titleLarge
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = primaryContainer
-                ),
-                modifier = Modifier.statusBarsPadding()
-            )
-        },
-        modifier = Modifier.systemBarsPadding()
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text("Welcome to TranXporter", style = MaterialTheme.typography.titleLarge)
-            Spacer(Modifier.height(16.dp))
-            Button(
-                onClick = { navController.navigate("booking_details") },
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "TranXporter",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = primaryContainer
+                    ),
+                    modifier = Modifier.statusBarsPadding()
+                )
+            },
+            modifier = Modifier.systemBarsPadding()
+        ) { paddingValues ->
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Text("Book a Vehicle")
-            }
-            Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = { navController.navigate("driver") },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Text("Driver Mode")
-            }
+                Text("Welcome to TranXporter", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    onClick = { navigator.push(BookingDetailsScreen()) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Text("Book a Vehicle")
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = { navigator.push(DriverScreen()) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Text("Driver Mode")
+                }
 
-            Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    FirebaseAuth.getInstance().signOut()
-                    navController.navigate("auth") {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Text("Logout")
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        FirebaseAuth.getInstance().signOut()
+
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Text("Logout")
+                }
             }
         }
+
     }
 }
 

@@ -19,42 +19,49 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.core.screen.Screen
 
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun DriverScreen() {
-    var availableRides by remember { mutableStateOf(listOf<RideRequest>()) }
+class DriverScreen : Screen {
 
-    // Simulate fetching ride requests
-    LaunchedEffect(Unit) {
-        availableRides = getAvailableRides()
-    }
+    @Composable
+    override fun Content() {
+        var availableRides by remember { mutableStateOf(listOf<RideRequest>()) }
 
-    Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Available Rides") }
-            )
+        // Simulate fetching ride requests
+        LaunchedEffect(Unit) {
+            availableRides = getAvailableRides()
         }
-    ) { paddingValues ->
-        LazyColumn(modifier = Modifier.padding(paddingValues)) {
-            items(availableRides.size) { index ->
-                val ride = availableRides[index]
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                        .clickable {
-                            // Accept ride logic (to be implemented)
-                            // Remove the ride from the list
-                            availableRides = availableRides.toMutableList().apply { removeAt(index) }
+
+        Scaffold(
+            topBar = {
+                CenterAlignedTopAppBar(
+                    title = { Text("Available Rides") }
+                )
+            }
+        ) { paddingValues ->
+            LazyColumn(modifier = Modifier.padding(paddingValues)) {
+                items(availableRides.size) { index ->
+                    val ride = availableRides[index]
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(8.dp)
+                            .clickable {
+                                // Accept ride logic (to be implemented)
+                                // Remove the ride from the list
+                                availableRides =
+                                    availableRides
+                                        .toMutableList()
+                                        .apply { removeAt(index) }
+                            }
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Pickup: ${ride.pickupLocationName}")
+                            Text("Drop-off: ${ride.dropOffLocationName}")
+                            Text("Fare: ₹${"%.2f".format(ride.fare)}")
                         }
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Pickup: ${ride.pickupLocationName}")
-                        Text("Drop-off: ${ride.dropOffLocationName}")
-                        Text("Fare: ₹${"%.2f".format(ride.fare)}")
                     }
                 }
             }
