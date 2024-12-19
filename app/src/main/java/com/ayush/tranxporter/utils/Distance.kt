@@ -12,6 +12,7 @@ import org.json.JSONObject
 import java.net.URL
 import java.time.LocalTime
 import kotlin.math.round
+import kotlin.math.roundToInt
 
 
 suspend fun getDrivingDistance(origin: LatLng, destination: LatLng): Double? {
@@ -21,21 +22,35 @@ suspend fun getDrivingDistance(origin: LatLng, destination: LatLng): Double? {
             val url = "https://maps.googleapis.com/maps/api/directions/json?" +
                     "origin=${origin.latitude},${origin.longitude}" +
                     "&destination=${destination.latitude},${destination.longitude}" +
+                    "&mode=driving" +  // Specify driving mode
+                    "&alternatives=true" + // Request alternative routes
+                    "&optimize=true" + // Request route optimization
                     "&key=$apiKey"
 
             val response = URL(url).readText()
             val jsonObject = JSONObject(response)
 
             if (jsonObject.getString("status") == "OK") {
-                val route = jsonObject.getJSONArray("routes")
-                    .getJSONObject(0)
-                    .getJSONArray("legs")
-                    .getJSONObject(0)
+                // Get all available routes
+                val routes = jsonObject.getJSONArray("routes")
+                var shortestDistance = Double.MAX_VALUE
 
-                val distance = route.getJSONObject("distance")
-                    .getInt("value") / 1000.0  // Convert meters to kilometers
+                // Find the shortest route
+                for (i in 0 until routes.length()) {
+                    val route = routes.getJSONObject(i)
+                        .getJSONArray("legs")
+                        .getJSONObject(0)
 
-                distance
+                    val distance = route.getJSONObject("distance")
+                        .getInt("value") / 1000.0  // Convert meters to kilometers
+
+                    if (distance < shortestDistance) {
+                        shortestDistance = distance
+                    }
+                }
+
+                // Round to 1 decimal place for better display
+                (shortestDistance * 10).roundToInt() / 10.0
             } else {
                 Log.e("Distance", "API Error: ${jsonObject.getString("status")}")
                 null
