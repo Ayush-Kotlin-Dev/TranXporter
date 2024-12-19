@@ -5,67 +5,75 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.ayush.tranxporter.user.data.BookingStateHolder
+import com.ayush.tranxporter.user.data.LocationStateHolder
 import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
 import com.google.android.gms.maps.model.LatLng
 
 class LocationSelectionViewModel(
-    private val stateHolder: BookingStateHolder
+    private val locationStateHolder: LocationStateHolder,
+    private val bookingStateHolder: BookingStateHolder
 ) : ViewModel() {
-    private val _pickupLocation = mutableStateOf<LocationDetails?>(null)
-    val pickupLocation: LocationDetails? get() = _pickupLocation.value
+    // Exposed location getters directly from StateHolder
+    val pickupLocation: LocationDetails? get() = locationStateHolder.pickupLocation
+    val dropLocation: LocationDetails? get() = locationStateHolder.dropLocation
+    val isUsingCurrentLocation: Boolean get() = locationStateHolder.isUsingCurrentLocation
 
-    private val _dropLocation = mutableStateOf<LocationDetails?>(null)
-    val dropLocation: LocationDetails? get() = _dropLocation.value
-
-    private val _isUsingCurrentLocation = mutableStateOf(true)
-    val isUsingCurrentLocation: Boolean get() = _isUsingCurrentLocation.value
-
-    private var hasSetInitialLocation = false
-    fun getBookingDetails(): TransportItemDetails? = stateHolder.bookingDetails
-
-
-
+    // Location setters with validation
     fun setPickupLocation(latLng: LatLng?, address: String) {
-        _pickupLocation.value = if (latLng != null && address.isNotEmpty()) {
+        Log.d(TAG, "Setting pickup location: $latLng, $address")
+
+        val locationDetails = if (latLng != null && address.isNotEmpty()) {
             LocationDetails(latLng, address)
-        } else {
-            null
-        }
-        _isUsingCurrentLocation.value = false
-        hasSetInitialLocation = true
-        Log.d("LocationSelectionViewModel", "setPickupLocation: $latLng, $address")
+        } else null
+
+        locationStateHolder.updatePickupLocation(locationDetails)
+        locationStateHolder.setUsingCurrentLocation(false)
     }
 
     fun setDropLocation(latLng: LatLng?, address: String) {
-        _dropLocation.value = if (latLng != null && address.isNotEmpty()) {
+        Log.d(TAG, "Setting drop location: $latLng, $address")
+
+        val locationDetails = if (latLng != null && address.isNotEmpty()) {
             LocationDetails(latLng, address)
-        } else {
-            null
-        }
-        Log.d("LocationSelectionViewModel", "setDropLocation: $latLng, $address")
+        } else null
+
+        locationStateHolder.updateDropLocation(locationDetails)
     }
 
     fun updateCurrentLocation(location: LatLng, address: String) {
-        // Only update if we're using current location and haven't set a pickup location
-        if (_isUsingCurrentLocation.value && _pickupLocation.value == null && !hasSetInitialLocation) {
-            _pickupLocation.value = LocationDetails(location, address)
-            hasSetInitialLocation = true
+        Log.d(TAG, "Updating current location: $location, $address")
+
+        if (locationStateHolder.isUsingCurrentLocation &&
+            locationStateHolder.pickupLocation == null) {
+
+            locationStateHolder.updatePickupLocation(
+                LocationDetails(location, address)
+            )
         }
-        Log.d("LocationSelectionViewModel", "updateCurrentLocation: $location, $address")
     }
 
     fun resetLocations() {
-        _pickupLocation.value = null
-        _dropLocation.value = null
-        _isUsingCurrentLocation.value = true
+        Log.d(TAG, "Resetting all locations")
+        locationStateHolder.resetLocations()
     }
 
-    override fun onCleared() {
-        Log.d("LocationSelectionViewModel", "onCleared")
-        super.onCleared()
+    // Utility methods
+    fun areLocationsSet(): Boolean {
+        return locationStateHolder.pickupLocation != null &&
+                locationStateHolder.dropLocation != null
+    }
+
+    fun getBookingDetails(): TransportItemDetails? = bookingStateHolder.bookingDetails
+
+    companion object {
+        private const val TAG = "LocationSelectionVM"
     }
 }
+
+// Keep data class separate for clarity
 data class LocationDetails(
     val latLng: LatLng,
     val address: String
-)
+) {
+    override fun toString(): String = "LocationDetails(latLng=$latLng, address='$address')"
+}
