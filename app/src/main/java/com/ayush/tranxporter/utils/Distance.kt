@@ -2,6 +2,8 @@ package com.ayush.tranxporter.utils
 
 import android.util.Log
 import com.ayush.tranxporter.BuildConfig
+import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
+import com.ayush.tranxporter.user.presentation.bookingdetails.TruckType
 import com.ayush.tranxporter.user.presentation.location.VehicleType
 import com.google.android.gms.maps.model.LatLng
 import kotlinx.coroutines.Dispatchers
@@ -45,32 +47,73 @@ suspend fun getDrivingDistance(origin: LatLng, destination: LatLng): Double? {
     }
 }
 
+object PriceMultipliers {
+    // Vehicle type multipliers
+    val VEHICLE_MULTIPLIERS = mapOf(
+        TruckType.PICKUP to 1.0,
+        TruckType.LORRY to 1.5,
+        TruckType.SIXTEEN_WHEELER to 2.0,
+        TruckType.TRACTOR to 1.8
+    )
+
+    // Weight-based multipliers (per kg)
+    const val WEIGHT_FACTOR = 0.01  // 1 rupee per kg
+
+    // Special handling surcharge
+    const val SPECIAL_HANDLING_MULTIPLIER = 1.2
+
+    // Volume-based multiplier (based on dimensions)
+    const val VOLUME_FACTOR = 0.001  // 0.1 rupee per cubic cm
+}
+
 suspend fun calculateFare(
     start: LatLng,
     end: LatLng,
-    vehicleType: VehicleType = VehicleType.SMALL_TRUCK,
+    bookingDetails: TransportItemDetails,
     timeOfDay: LocalTime = LocalTime.now(),
     baseFare: Double = 50.0
 ): Double {
-    // Get actual driving distance
-    val distance = getDrivingDistance(start, end) ?: return baseFare // Return base fare if distance calculation fails
+    val distance = getDrivingDistance(start, end) ?: return baseFare
 
-    val perKmRate = when (vehicleType) {
-        VehicleType.SMALL_TRUCK -> 15.0
-        VehicleType.LARGE_TRUCK -> 25.0
-    }
+    // Calculate volume from dimensions
+    val (length, width, height) = bookingDetails.dimensions
+        .split("x")
+        .map { it.trim().toDouble() }
+    val volume = length * width * height
 
-    // Peak hour multiplier
+    // Base distance fare
+    val distanceFare = distance * 15.0  // Base per-km rate
+
+    // Vehicle type multiplier
+    val vehicleMultiplier = PriceMultipliers.VEHICLE_MULTIPLIERS[bookingDetails.truckType] ?: 1.0
+
+    // Weight charge
+    val weightCharge = bookingDetails.weight * PriceMultipliers.WEIGHT_FACTOR
+
+    // Volume charge
+    val volumeCharge = volume * PriceMultipliers.VOLUME_FACTOR
+
+    // Special handling surcharge
+    val specialHandlingMultiplier = if (bookingDetails.specialHandling)
+        PriceMultipliers.SPECIAL_HANDLING_MULTIPLIER else 1.0
+
+    // Peak hour multiplier (keeping existing logic)
     val peakMultiplier = if (timeOfDay.isAfter(LocalTime.of(17, 0)) &&
         timeOfDay.isBefore(LocalTime.of(20, 0))) {
-        1.2 // 20% increase during peak hours
+        1.2
     } else {
         1.0
     }
 
-    // Total fare calculation
-    val fare = baseFare + (distance * perKmRate * peakMultiplier)
-    return fare.roundTo(2)
+    // Calculate total fare
+    val totalFare = (baseFare + distanceFare) * vehicleMultiplier +
+            weightCharge +
+            volumeCharge
+
+    // Apply special handling and peak hour multipliers
+    val finalFare = totalFare * specialHandlingMultiplier * peakMultiplier
+
+    return finalFare.roundTo(2)
 }
 
 // Helper function to round doubles

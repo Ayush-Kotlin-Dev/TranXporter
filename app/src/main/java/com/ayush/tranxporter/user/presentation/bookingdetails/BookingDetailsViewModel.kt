@@ -4,10 +4,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
+import com.ayush.tranxporter.user.data.BookingStateHolder
 import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
 
-class BookingDetailsViewModel : ViewModel(), KoinComponent {
+class BookingDetailsViewModel(
+    private val stateHolder: BookingStateHolder
+
+) : ViewModel(), KoinComponent {
 
     var state by mutableStateOf(BookingDetailsState())
         private set
@@ -121,6 +125,8 @@ class BookingDetailsViewModel : ViewModel(), KoinComponent {
                 description = state.description
             )
 
+            stateHolder.updateBookingDetails(details)
+
             updateState {
                 copy(
                     submittedDetails = details,
@@ -145,7 +151,7 @@ class BookingDetailsViewModel : ViewModel(), KoinComponent {
 
     fun hasSubmittedDetails(): Boolean = state.submittedDetails != null
 
-    fun getSubmittedDetails(): TransportItemDetails? = state.submittedDetails
+    fun getSubmittedDetails(): TransportItemDetails? = stateHolder.bookingDetails
 
     fun clearError() {
         updateState { copy(error = null) }

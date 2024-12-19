@@ -4,9 +4,13 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import com.ayush.tranxporter.user.data.BookingStateHolder
+import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
 import com.google.android.gms.maps.model.LatLng
 
-class LocationSelectionViewModel : ViewModel() {
+class LocationSelectionViewModel(
+    private val stateHolder: BookingStateHolder
+) : ViewModel() {
     private val _pickupLocation = mutableStateOf<LocationDetails?>(null)
     val pickupLocation: LocationDetails? get() = _pickupLocation.value
 
@@ -17,15 +21,7 @@ class LocationSelectionViewModel : ViewModel() {
     val isUsingCurrentLocation: Boolean get() = _isUsingCurrentLocation.value
 
     private var hasSetInitialLocation = false
-
-    companion object {
-        val Factory: ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                return LocationSelectionViewModel() as T
-            }
-        }
-    }
+    fun getBookingDetails(): TransportItemDetails? = stateHolder.bookingDetails
 
 
 

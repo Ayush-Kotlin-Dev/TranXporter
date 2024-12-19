@@ -25,16 +25,14 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.ayush.tranxporter.R
-import com.ayush.tranxporter.user.SearchLocationScreen
+import com.ayush.tranxporter.user.LocationSelectionScreen
 import org.koin.androidx.compose.koinViewModel
 
 private object Dimens {
     val paddingLarge = 24.dp
     val paddingMedium = 16.dp
-    val paddingSmall = 8.dp
     val cornerRadiusLarge = 16.dp
     val cornerRadiusMedium = 12.dp
-    val iconSize = 32.dp
     val buttonHeight = 56.dp
 }
 
@@ -55,7 +53,7 @@ class BookingDetailsScreen : Screen {
         LaunchedEffect(state.submittedDetails) {
             if (state.submittedDetails != null && !hasNavigated) {
                 hasNavigated = true
-                navController.push(SearchLocationScreen())
+                navController.push(LocationSelectionScreen())
 
             }
         }

@@ -64,6 +64,9 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import com.ayush.tranxporter.R
 import com.ayush.tranxporter.core.presentation.util.PermissionUtils.getAddressFromLocation
+import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsViewModel
+import com.ayush.tranxporter.user.presentation.bookingdetails.TransportItemDetails
+import com.ayush.tranxporter.user.presentation.bookingdetails.TruckType
 import com.ayush.tranxporter.utils.VibratorService
 import com.ayush.tranxporter.utils.calculateFare
 import com.ayush.tranxporter.utils.getDrivingDistance
@@ -92,15 +95,19 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 data class BookingScreen(
+    @Transient
     val initialPickup: LatLng? = null,
+    @Transient
     val initialDropoff: LatLng? = null,
+    @Transient
     val locationType: String? = null
 ) : Screen {
     @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.current
-        val viewModel: LocationSelectionViewModel = koinViewModel()
+        val bookingDetailsViewModel: BookingDetailsViewModel = koinViewModel()
+        val locationViewModel: LocationSelectionViewModel = koinViewModel()
 
         val permissionState = rememberMultiplePermissionsState(
             listOf(
@@ -115,11 +122,11 @@ data class BookingScreen(
         var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
 
-        var pickupLocation by remember(viewModel.pickupLocation) {
-            mutableStateOf(viewModel.pickupLocation?.latLng)
+        var pickupLocation by remember(locationViewModel.pickupLocation) {
+            mutableStateOf(locationViewModel.pickupLocation?.latLng)
         }
-        var dropOffLocation by remember(viewModel.dropLocation) {
-            mutableStateOf(viewModel.dropLocation?.latLng)
+        var dropOffLocation by remember(locationViewModel.dropLocation) {
+            mutableStateOf(locationViewModel.dropLocation?.latLng)
         }
         val fusedLocationClient = remember {
             LocationServices.getFusedLocationProviderClient(context)
@@ -170,39 +177,53 @@ data class BookingScreen(
         var smallTruckFare by remember { mutableStateOf<Double?>(null) }
         var largeTruckFare by remember { mutableStateOf<Double?>(null) }
 
+
 // Update the LaunchedEffect that handles distance and fare calculations
         LaunchedEffect(pickupLocation, dropOffLocation) {
             if (pickupLocation != null && dropOffLocation != null) {
                 try {
-                    // Reset values while calculating
                     drivingDistance = null
                     smallTruckFare = null
                     largeTruckFare = null
 
-                    // Get route points and distance
                     val points = getRoutePoints(pickupLocation!!, dropOffLocation!!)
                     routePoints = points
 
                     // Get driving distance first
                     drivingDistance = getDrivingDistance(pickupLocation!!, dropOffLocation!!)
 
-                    // Only calculate fares if we have a valid distance
-                    if (drivingDistance != null) {
-                        // Calculate fares
-                        smallTruckFare = calculateFare(
-                            pickupLocation!!,
-                            dropOffLocation!!,
-                            VehicleType.SMALL_TRUCK
-                        )
-                        largeTruckFare = calculateFare(
-                            pickupLocation!!,
-                            dropOffLocation!!,
-                            VehicleType.LARGE_TRUCK
-                        )
+                    // Get booking details from BookingDetailsViewModel
+                    val bookingDetails = bookingDetailsViewModel.getSubmittedDetails()
+                    if (bookingDetails == null) {
+                        // Navigate back to booking details if missing
+                        Toast.makeText(
+                            context,
+                            "Please complete booking details first",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        navigator?.pop()
+                        return@LaunchedEffect
+                    }
+                    Toast.makeText(
+                        context,
+                         "Hii ${bookingDetails.category}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    // Calculate fare with actual booking details
+                    val fare = calculateFare(
+                        start = pickupLocation!!,
+                        end = dropOffLocation!!,
+                        bookingDetails = bookingDetails,
+                        timeOfDay = LocalTime.now()
+                    )
+
+                    // Update fare based on truck type
+                    when (bookingDetails.truckType) {
+                        TruckType.PICKUP, TruckType.LORRY -> smallTruckFare = fare
+                        TruckType.SIXTEEN_WHEELER, TruckType.TRACTOR -> largeTruckFare = fare
                     }
                 } catch (e: Exception) {
                     Log.e("Route", "Failed to get route or calculate fare", e)
-                    // Handle error state here if needed
                 }
             }
         }
@@ -262,8 +283,8 @@ data class BookingScreen(
         // Update the existing LaunchedEffect for permission state
         LaunchedEffect(permissionState.allPermissionsGranted) {
             if (permissionState.allPermissionsGranted &&
-                viewModel.isUsingCurrentLocation &&
-                viewModel.pickupLocation == null &&
+                locationViewModel.isUsingCurrentLocation &&
+                locationViewModel.pickupLocation == null &&
                 locationType?.lowercase() != "drop"
             ) {
                 try {
@@ -271,7 +292,7 @@ data class BookingScreen(
                     location?.let {
                         currentLocation = LatLng(it.latitude, it.longitude)
                         val address = getAddressFromLocation(context, currentLocation!!)
-                        viewModel.updateCurrentLocation(currentLocation!!, address)
+                        locationViewModel.updateCurrentLocation(currentLocation!!, address)
                         if (!hasAnimatedToInitialLocation) {
                             cameraPositionState.animate(
                                 CameraUpdateFactory.newLatLngZoom(currentLocation!!, 15f),
@@ -408,24 +429,24 @@ data class BookingScreen(
                                 val address = getAddressFromLocation(context, latLng)
                                 when (locationType?.lowercase()) {
                                     "pickup" -> {
-                                        viewModel.setPickupLocation(latLng, address)
+                                        locationViewModel.setPickupLocation(latLng, address)
                                         navigator?.pop()
                                     }
 
                                     "drop" -> {
-                                        viewModel.setDropLocation(latLng, address)
+                                        locationViewModel.setDropLocation(latLng, address)
                                         navigator?.pop()
                                     }
 
                                     else -> {
                                         // Normal booking flow
                                         when {
-                                            viewModel.pickupLocation == null -> {
-                                                viewModel.setPickupLocation(latLng, address)
+                                            locationViewModel.pickupLocation == null -> {
+                                                locationViewModel.setPickupLocation(latLng, address)
                                             }
 
-                                            viewModel.dropLocation == null -> {
-                                                viewModel.setDropLocation(latLng, address)
+                                            locationViewModel.dropLocation == null -> {
+                                                locationViewModel.setDropLocation(latLng, address)
                                             }
                                         }
                                     }
@@ -439,7 +460,7 @@ data class BookingScreen(
                                 title = "Pickup Location",
                                 snippet = "Tap to change",
                                 onInfoWindowClick = {
-                                    viewModel.setPickupLocation(
+                                    locationViewModel.setPickupLocation(
                                         null,
                                         ""
                                     ) // Add this method to ViewModel
@@ -453,7 +474,7 @@ data class BookingScreen(
                                 title = "Drop-off Location",
                                 snippet = "Tap to change",
                                 onInfoWindowClick = {
-                                    viewModel.setDropLocation(
+                                    locationViewModel.setDropLocation(
                                         null,
                                         ""
                                     ) // Add this method to ViewModel
@@ -567,7 +588,7 @@ data class BookingScreen(
                                 smallTruckFare = smallTruckFare,
                                 largeTruckFare = largeTruckFare,
                                 onBack = {
-                                    viewModel.setDropLocation(null, "")
+                                    locationViewModel.setDropLocation(null, "")
                                     dropOffLocation = null
                                 }
                             )
