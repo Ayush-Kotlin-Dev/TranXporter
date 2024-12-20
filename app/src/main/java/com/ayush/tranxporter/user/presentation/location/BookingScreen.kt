@@ -5,21 +5,38 @@ import android.content.ContentValues.TAG
 import android.content.Context
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.ModalBottomSheetValue
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.Divider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -33,7 +50,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -70,6 +90,8 @@ data class BookingScreen(
     @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
+
+        var showBottomSheet by remember { mutableStateOf(false) }
 
         // 1. Group related declarations
         val context = LocalContext.current
@@ -112,9 +134,12 @@ data class BookingScreen(
         var largeTruckFare by remember { mutableStateOf<Double?>(null) }
 
         val hasAnimatedToInitialLocation by remember { mutableStateOf(false) }
-        val bottomSheetState = rememberModalBottomSheetState(
-        )
 
+        LaunchedEffect(pickupLocation, dropOffLocation) {
+            if (pickupLocation != null && dropOffLocation != null && bookingDetails != null) {
+                showBottomSheet = true
+            }
+        }
         // Initial setup and validation
         LaunchedEffect(Unit) {
             initializeScreen(
@@ -263,11 +288,13 @@ data class BookingScreen(
                             .padding(end = 16.dp, bottom = 96.dp)
                     )
                     Box(
-                        modifier = Modifier.align(Alignment.BottomCenter),
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 16.dp), // Add consistent padding
                         contentAlignment = Alignment.BottomCenter
                     ) {
                         if (pickupLocation == null || dropOffLocation == null) {
-                            // Show instructions
+                            // Instructions
                             Text(
                                 text = when {
                                     pickupLocation == null -> "Tap on the map to select your pickup location."
@@ -276,27 +303,156 @@ data class BookingScreen(
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
-                                    .padding(8.dp)
+                                    .background(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
                             )
-                        } else if (bookingDetails != null) {
-                            // Show vehicle selection card
-                            VehicleSelectionCard(
-                                drivingDistance = drivingDistance,
-                                travelTime = travelTime,
-                                smallTruckFare = smallTruckFare,
-                                largeTruckFare = largeTruckFare,
-                                onBack = {
-                                    locationViewModel.setDropLocation(null, "")
-                                    dropOffLocation = null
-                                },
-                                selectedTruck = bookingDetails!!.truckType
-                            )
+                        } else {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                // Optional price preview
+                                Text(
+                                    text = "Starting from ₹${smallTruckFare?.toInt() ?: "---"}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier
+                                        .background(
+                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+
+                                FloatingActionButton(
+                                    onClick = { showBottomSheet = true },
+                                    modifier = Modifier
+                                        .shadow(2.dp, RoundedCornerShape(24.dp))
+                                        .border(
+                                            width = 1.dp,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            shape = RoundedCornerShape(24.dp)
+                                        ),
+                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                    contentColor = MaterialTheme.colorScheme.primary,
+                                    elevation = FloatingActionButtonDefaults.elevation(
+                                        defaultElevation = 0.dp,
+                                        pressedElevation = 2.dp
+                                    )
+                                ) {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardArrowUp,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            text = "View Available Vehicles",
+                                            style = MaterialTheme.typography.labelMedium
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
-
                 }
+            }
+        }
+        if (showBottomSheet && bookingDetails != null) {
+            ModalBottomSheet(
+                onDismissRequest = { showBottomSheet = false },
+                sheetState = rememberModalBottomSheetState(),
+                containerColor = MaterialTheme.colorScheme.surface, // Set surface color
+                contentColor = MaterialTheme.colorScheme.onSurface, // Set content color
+                tonalElevation = 0.dp, // Remove elevation tint
+                scrimColor = Color.Black.copy(alpha = 0.32f), // Proper scrim color
+                dragHandle = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surface),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        // Drag handle
+                        Box(
+                            modifier = Modifier
+                                .padding(vertical = 12.dp)
+                                .width(32.dp)
+                                .height(4.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                                    shape = RoundedCornerShape(2.dp)
+                                )
+                        )
 
+                        // Header with close button
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Available Vehicles",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            IconButton(
+                                onClick = { showBottomSheet = false },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                        shape = CircleShape
+                                    )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = "Close",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+
+                        Divider(
+                            modifier = Modifier.fillMaxWidth(),
+                            thickness = 1.dp,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding() // Add padding for navigation bar
+                ) {
+                    VehicleSelectionCard(
+                        drivingDistance = drivingDistance,
+                        travelTime = travelTime,
+                        smallTruckFare = smallTruckFare,
+                        largeTruckFare = largeTruckFare,
+                        onBack = {
+                            locationViewModel.setDropLocation(null, "")
+                            dropOffLocation = null
+                            showBottomSheet = false
+                        },
+                        selectedTruck = bookingDetails!!.truckType,
+                    )
+                }
             }
         }
     }
@@ -309,7 +465,7 @@ data class BookingScreen(
         cameraPositionState: CameraPositionState,
         permissionState: MultiplePermissionsState,
         fusedLocationClient: FusedLocationProviderClient,
-        onBookingDetailsUpdate: (TransportItemDetails) -> Unit,
+        onBookingDetailsUpdate: (TransportItemDetails) -> Unit, // Changed from () -> Unit
         hasAnimatedToInitialLocation: Boolean
     ) {
         Log.d(TAG, "Initializing screen")
