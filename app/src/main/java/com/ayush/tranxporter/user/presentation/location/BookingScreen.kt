@@ -3,16 +3,18 @@ package com.ayush.tranxporter.user.presentation.location
 import android.Manifest
 import android.content.ContentValues.TAG
 import android.content.Context
+import android.content.Intent
+import android.location.LocationManager
+import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,7 +30,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -36,7 +39,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -54,6 +56,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -72,6 +75,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.MapsInitializer
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
@@ -149,7 +153,9 @@ data class BookingScreen(
                 cameraPositionState = cameraPositionState,
                 permissionState = permissionState,
                 fusedLocationClient = fusedLocationClient,
-                onBookingDetailsUpdate = { bookingDetails = bookingDetailsViewModel.getSubmittedDetails() },
+                onBookingDetailsUpdate = {
+                    bookingDetails = bookingDetailsViewModel.getSubmittedDetails()
+                },
                 hasAnimatedToInitialLocation = hasAnimatedToInitialLocation
             )
         }
@@ -173,7 +179,8 @@ data class BookingScreen(
                     smallTruckFare = small
                     largeTruckFare = large
                 },
-                cameraPositionState = cameraPositionState
+                cameraPositionState = cameraPositionState,
+                context = context
             )
         }
 
@@ -187,7 +194,35 @@ data class BookingScreen(
                 scope = scope
             )
         }
+        var isLocationEnabled by remember { mutableStateOf(false) }
 
+// Replace the LaunchedEffect for permission handling
+        LaunchedEffect(Unit) {
+            // Check location settings first
+            val locationManager =
+                context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            isLocationEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        }
+
+        LaunchedEffect(permissionState.allPermissionsGranted, isLocationEnabled) {
+            when {
+                !permissionState.allPermissionsGranted -> {
+                    // Don't pop immediately, let user see the permission request screen
+                    return@LaunchedEffect
+                }
+
+                else -> {
+                    handleLocationPermission(
+                        permissionState = permissionState,
+                        locationViewModel = locationViewModel,
+                        fusedLocationClient = fusedLocationClient,
+                        context = context,
+                        locationType = locationType,
+                        scope = scope
+                    )
+                }
+            }
+        }
         Scaffold(
             topBar = {
                 TopAppBar(
@@ -230,133 +265,152 @@ data class BookingScreen(
                     }
                 )
             },
-//        floatingActionButton = {
-//            if (pickupLocation != null && dropOffLocation != null) {
-//                FloatingActionButton(
-//                    onClick = { /* Handle booking */ },
-//                    containerColor = MaterialTheme.colorScheme.primary
-//                ) {
-//                    Icon(Icons.Default.Check, contentDescription = "Book Now")
-//                }
-//            }
-//        }
         ) { paddingValues ->
-            if (permissionState.allPermissionsGranted) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                ) {
-                    MapContent(
-                        cameraPositionState = cameraPositionState,
-                        pickupLocation = pickupLocation,
-                        dropOffLocation = dropOffLocation,
-                        routePoints = routePoints,
-                        onMapClick = { latLng ->
-                            scope.launch {
-                                handleMapClick(
-                                    latLng = latLng,
-                                    context = context,
-                                    locationViewModel = locationViewModel,
-                                    navigator = navigator,
-                                    locationType = locationType
-                                )
-                            }
-                        },
-                        onPickupMarkerClick = {
-                            locationViewModel.setPickupLocation(null, "")
-                            pickupLocation = null
-                        },
-                        onDropoffMarkerClick = {
-                            locationViewModel.setDropLocation(null, "")
-                            dropOffLocation = null
-                        }
+            when {
+                !permissionState.allPermissionsGranted -> {
+                    PermissionRequestScreen(
+                        permissionState = permissionState
                     )
+                }
 
-                    LocationButton(
-                        onClick = {
-                            scope.launch {
-                                handleCurrentLocationClick(
-                                    context = context,
-                                    fusedLocationClient = fusedLocationClient,
-                                    cameraPositionState = cameraPositionState
-                                )
-                            }
-                        },
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 16.dp, bottom = 96.dp)
-                    )
+                !isLocationEnabled -> {
+                    LocationDisabledScreen {
+                        try {
+                            val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Error opening location settings", e)
+                            Toast.makeText(
+                                context,
+                                "Unable to open location settings",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+
+                else -> {
                     Box(
                         modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 16.dp), // Add consistent padding
-                        contentAlignment = Alignment.BottomCenter
+                            .fillMaxSize()
+                            .padding(paddingValues)
                     ) {
-                        if (pickupLocation == null || dropOffLocation == null) {
-                            // Instructions
-                            Text(
-                                text = when {
-                                    pickupLocation == null -> "Tap on the map to select your pickup location."
-                                    else -> "Tap on the map to select your drop-off location."
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier
-                                    .background(
-                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                        } else {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                // Optional price preview
-                                Text(
-                                    text = "Starting from ₹${smallTruckFare?.toInt() ?: "---"}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier
-                                        .background(
-                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                                            RoundedCornerShape(4.dp)
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                )
+                        if (permissionState.allPermissionsGranted) {
 
-                                FloatingActionButton(
-                                    onClick = { showBottomSheet = true },
-                                    modifier = Modifier
-                                        .shadow(2.dp, RoundedCornerShape(24.dp))
-                                        .border(
-                                            width = 1.dp,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            shape = RoundedCornerShape(24.dp)
-                                        ),
-                                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                                    contentColor = MaterialTheme.colorScheme.primary,
-                                    elevation = FloatingActionButtonDefaults.elevation(
-                                        defaultElevation = 0.dp,
-                                        pressedElevation = 2.dp
+                            MapContent(
+                                cameraPositionState = cameraPositionState,
+                                pickupLocation = pickupLocation,
+                                dropOffLocation = dropOffLocation,
+                                routePoints = routePoints,
+                                onMapClick = { latLng ->
+                                    scope.launch {
+                                        handleMapClick(
+                                            latLng = latLng,
+                                            context = context,
+                                            locationViewModel = locationViewModel,
+                                            navigator = navigator,
+                                            locationType = locationType
+                                        )
+                                    }
+                                },
+                                onPickupMarkerClick = {
+                                    locationViewModel.setPickupLocation(null, "")
+                                    pickupLocation = null
+                                },
+                                onDropoffMarkerClick = {
+                                    locationViewModel.setDropLocation(null, "")
+                                    dropOffLocation = null
+                                }
+                            )
+
+                            LocationButton(
+                                onClick = {
+                                    scope.launch {
+                                        handleCurrentLocationClick(
+                                            context = context,
+                                            fusedLocationClient = fusedLocationClient,
+                                            cameraPositionState = cameraPositionState
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .padding(end = 16.dp, bottom = 96.dp)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 16.dp), // Add consistent padding
+                                contentAlignment = Alignment.BottomCenter
+                            ) {
+                                if (pickupLocation == null || dropOffLocation == null) {
+                                    // Instructions
+                                    Text(
+                                        text = when {
+                                            pickupLocation == null -> "Tap on the map to select your pickup location."
+                                            else -> "Tap on the map to select your drop-off location."
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier
+                                            .background(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
+                                                RoundedCornerShape(8.dp)
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 8.dp)
                                     )
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        modifier = Modifier.padding(horizontal = 16.dp)
+                                } else {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.KeyboardArrowUp,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                        // Optional price preview
                                         Text(
-                                            text = "View Available Vehicles",
-                                            style = MaterialTheme.typography.labelMedium
+                                            text = "Starting from ₹${smallTruckFare?.toInt() ?: "---"}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier
+                                                .background(
+                                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                                    RoundedCornerShape(4.dp)
+                                                )
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
                                         )
+
+                                        FloatingActionButton(
+                                            onClick = { showBottomSheet = true },
+                                            modifier = Modifier
+                                                .shadow(2.dp, RoundedCornerShape(24.dp))
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    shape = RoundedCornerShape(24.dp)
+                                                ),
+                                            containerColor = MaterialTheme.colorScheme.surface.copy(
+                                                alpha = 0.9f
+                                            ),
+                                            contentColor = MaterialTheme.colorScheme.primary,
+                                            elevation = FloatingActionButtonDefaults.elevation(
+                                                defaultElevation = 0.dp,
+                                                pressedElevation = 2.dp
+                                            )
+                                        ) {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(horizontal = 16.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.KeyboardArrowUp,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                Text(
+                                                    text = "View Available Vehicles",
+                                                    style = MaterialTheme.typography.labelMedium
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -364,6 +418,7 @@ data class BookingScreen(
                     }
                 }
             }
+
         }
         if (showBottomSheet && bookingDetails != null) {
             ModalBottomSheet(
@@ -434,7 +489,7 @@ data class BookingScreen(
                 },
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
 
-            ) {
+                ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -457,6 +512,7 @@ data class BookingScreen(
         }
     }
 
+    // Modify the initializeScreen function to check location state first
     @OptIn(ExperimentalPermissionsApi::class)
     private suspend fun initializeScreen(
         bookingDetailsViewModel: BookingDetailsViewModel,
@@ -465,45 +521,72 @@ data class BookingScreen(
         cameraPositionState: CameraPositionState,
         permissionState: MultiplePermissionsState,
         fusedLocationClient: FusedLocationProviderClient,
-        onBookingDetailsUpdate: (TransportItemDetails) -> Unit, // Changed from () -> Unit
+        onBookingDetailsUpdate: (TransportItemDetails) -> Unit,
         hasAnimatedToInitialLocation: Boolean
     ) {
         Log.d(TAG, "Initializing screen")
 
-        // Check booking details first
-        val details = bookingDetailsViewModel.getSubmittedDetails()
-        if (details == null) {
-            Toast.makeText(context, "Please complete booking details first", Toast.LENGTH_LONG).show()
-            navigator?.pop()
+        // Check permissions and location state first
+        if (!permissionState.allPermissionsGranted) {
             return
         }
-        onBookingDetailsUpdate(details)
 
-        if (!hasAnimatedToInitialLocation) {
-            when {
-                initialPickup != null && initialDropoff != null -> {
-                    val bounds = LatLngBounds.builder()
-                        .include(initialPickup)
-                        .include(initialDropoff)
-                        .build()
-                    cameraPositionState.animate(
-                        CameraUpdateFactory.newLatLngBounds(bounds, 100),
-                        durationMs = 1000
-                    )
-                }
-                initialPickup != null -> animateCamera(initialPickup, cameraPositionState)
-                initialDropoff != null -> animateCamera(initialDropoff, cameraPositionState)
-                else -> animateCamera(DEFAULT_LOCATION, cameraPositionState)
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val isLocationEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        if (!isLocationEnabled) {
+            return
+        }
+
+        try {
+            // Initialize maps
+            MapsInitializer.initialize(context)
+            isMapInitialized = true
+
+            // Continue with normal initialization
+            val details = bookingDetailsViewModel.getSubmittedDetails()
+            if (details == null) {
+                Toast.makeText(context, "Please complete booking details first", Toast.LENGTH_LONG)
+                    .show()
+                navigator?.pop()
+                return
             }
+            onBookingDetailsUpdate(details)
+
+            if (!hasAnimatedToInitialLocation && isMapInitialized) {
+                when {
+                    initialPickup != null && initialDropoff != null -> {
+                        val bounds = LatLngBounds.builder()
+                            .include(initialPickup)
+                            .include(initialDropoff)
+                            .build()
+                        cameraPositionState.animate(
+                            CameraUpdateFactory.newLatLngBounds(bounds, 100),
+                            durationMs = 1000
+                        )
+                    }
+
+                    initialPickup != null -> animateCamera(initialPickup, cameraPositionState)
+                    initialDropoff != null -> animateCamera(initialDropoff, cameraPositionState)
+                    else -> animateCamera(DEFAULT_LOCATION, cameraPositionState)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error initializing screen", e)
+            Toast.makeText(
+                context,
+                "Error initializing map. Please try again.",
+                Toast.LENGTH_SHORT
+            ).show()
+            navigator?.pop()
         }
     }
-
 
 
     // Add these functions inside the BookingScreen class
     companion object {
         private const val TAG = "BookingScreen"
         private val DEFAULT_LOCATION = LatLng(20.5937, 78.9629)
+        private var isMapInitialized = false  // Move here to be accessible by all methods
 
         private suspend fun handleMapClick(
             latLng: LatLng,
@@ -519,16 +602,19 @@ data class BookingScreen(
                         locationViewModel.setPickupLocation(latLng, address)
                         navigator?.pop()
                     }
+
                     "drop" -> {
                         locationViewModel.setDropLocation(latLng, address)
                         navigator?.pop()
                     }
+
                     else -> {
                         // Normal booking flow
                         when {
                             locationViewModel.pickupLocation == null -> {
                                 locationViewModel.setPickupLocation(latLng, address)
                             }
+
                             locationViewModel.dropLocation == null -> {
                                 locationViewModel.setDropLocation(latLng, address)
                             }
@@ -583,10 +669,19 @@ data class BookingScreen(
             cameraPositionState: CameraPositionState,
             zoom: Float = 15f
         ) {
-            cameraPositionState.animate(
-                CameraUpdateFactory.newLatLngZoom(location, zoom),
-                durationMs = 1000
-            )
+            if (!isMapInitialized) {
+                Log.d(TAG, "Map not initialized, skipping camera animation")
+                return
+            }
+
+            try {
+                cameraPositionState.animate(
+                    CameraUpdateFactory.newLatLngZoom(location, zoom),
+                    durationMs = 1000
+                )
+            } catch (e: Exception) {
+                Log.e(TAG, "Error animating camera", e)
+            }
         }
     }
 }
@@ -607,7 +702,8 @@ private suspend fun handleLocationPermission(
 
     if (!locationViewModel.isUsingCurrentLocation ||
         locationViewModel.pickupLocation != null ||
-        locationType?.lowercase() == "drop") {
+        locationType?.lowercase() == "drop"
+    ) {
         return
     }
 
@@ -618,6 +714,12 @@ private suspend fun handleLocationPermission(
         }
 
         val latLng = LatLng(location.latitude, location.longitude)
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            Log.d(TAG, "Location services disabled")
+            return
+        }
+
         scope.launch {
             try {
                 val address = getAddressFromLocation(context, latLng)
@@ -639,7 +741,8 @@ private suspend fun updateRouteAndFares(
     bookingDetails: TransportItemDetails?,
     onRouteUpdate: (List<LatLng>, Double, String) -> Unit,
     onFareUpdate: (Double, Double) -> Unit,
-    cameraPositionState: CameraPositionState
+    cameraPositionState: CameraPositionState,
+    context: Context // Add context parameter
 ) {
     if (pickupLocation != null && dropOffLocation != null && bookingDetails != null) {
         try {
@@ -677,8 +780,90 @@ private suspend fun updateRouteAndFares(
             Log.d(TAG, "Route and fares updated successfully")
         } catch (e: Exception) {
             Log.e(TAG, "Error updating route and fares", e)
-            // Optionally handle error (show toast, etc.)
+            Toast.makeText(
+                context,
+                "Unable to calculate route. Please try again.",
+                Toast.LENGTH_SHORT
+            ).show()
+            // Reset values on error
+            onRouteUpdate(emptyList(), 0.0, "")
+            onFareUpdate(0.0, 0.0)
         }
     }
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+private fun PermissionRequestScreen(
+    permissionState: MultiplePermissionsState
+) {
+    var isRequesting by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Location Permission Required",
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center // Fixed TextAlign1 to TextAlign
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "We need location permission to show nearby locations and calculate routes.",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center // Fixed TextAlign1 to TextAlign
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = {
+                isRequesting = true
+                permissionState.launchMultiplePermissionRequest()
+            },
+            enabled = !isRequesting
+        ) {
+            if (isRequesting) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Text("Grant Permission")
+            }
+        }
+    }
+
+    LaunchedEffect(permissionState.allPermissionsGranted) {
+        isRequesting = false
+    }
+}
+
+@Composable
+private fun LocationDisabledScreen(onEnableLocation: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Location Services Disabled",
+            style = MaterialTheme.typography.headlineMedium,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "Please enable location services to use this feature",
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(onClick = onEnableLocation) {
+            Text("Enable Location")
+        }
+    }
+}

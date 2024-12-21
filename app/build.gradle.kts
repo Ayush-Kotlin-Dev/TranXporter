@@ -69,9 +69,15 @@ dependencies {
     implementation(platform(libs.firebase.bom))
     implementation(libs.bundles.firebase)
 
+    // Testing
+    testImplementation(libs.junit)
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+
     // Navigation & Permissions
     implementation(libs.androidx.navigation.compose)
     implementation(libs.accompanist.permissions)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
 
     // Network & Data
     implementation(libs.slf4j.simple)
@@ -110,6 +116,5 @@ dependencies {
     implementation(libs.bundles.koin)
 
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.32.0")
-
 
 }

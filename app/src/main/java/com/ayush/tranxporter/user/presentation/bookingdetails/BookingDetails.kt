@@ -149,7 +149,6 @@ fun ItemDetailsCard(
                 }
             }
 
-            // Weight and Dimensions Section
             FormSection(title = "Item Details") {
                 OutlinedTextField(
                     value = state.weight,
@@ -164,7 +163,8 @@ fun ItemDetailsCard(
                     leadingIcon = {
                         Icon(
                             painter = painterResource(id = R.drawable.weight),
-                            contentDescription = null
+                            contentDescription = null,
+                            modifier = Modifier.size(24.dp)
                         )
                     },
                     shape = RoundedCornerShape(Dimens.cornerRadiusMedium),

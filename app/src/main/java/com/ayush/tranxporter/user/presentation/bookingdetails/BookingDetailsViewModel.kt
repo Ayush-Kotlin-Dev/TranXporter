@@ -161,10 +161,10 @@ class BookingDetailsViewModel(
 // Improved state class with better organization
 data class BookingDetailsState(
     // Form inputs
-    val selectedCategory: String? = null,
-    val weight: String = "",
-    val dimensions: String = "",
-    val selectedTruckType: TruckType? = null,
+    val selectedCategory: String? = "Furniture",
+    val weight: String = "69.00",
+    val dimensions: String = "100 x 50 x 30",
+    val selectedTruckType: TruckType? = TruckType.PICKUP,
     val specialHandling: Boolean = false,
     val description: String = "",
 
