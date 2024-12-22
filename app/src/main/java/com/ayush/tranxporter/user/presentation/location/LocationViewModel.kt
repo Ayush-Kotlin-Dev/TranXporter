@@ -18,6 +18,9 @@ class LocationSelectionViewModel(
     val dropLocation: LocationDetails? get() = locationStateHolder.dropLocation
     val isUsingCurrentLocation: Boolean get() = locationStateHolder.isUsingCurrentLocation
 
+
+    //make this viewmodel more optimiz
+
     // Location setters with validation
     fun setPickupLocation(latLng: LatLng?, address: String) {
         Log.d(TAG, "Setting pickup location: $latLng, $address")
@@ -51,7 +54,7 @@ class LocationSelectionViewModel(
             )
         }
     }
-
+//optimize this function
     fun resetLocations() {
         Log.d(TAG, "Resetting all locations")
         locationStateHolder.resetLocations()

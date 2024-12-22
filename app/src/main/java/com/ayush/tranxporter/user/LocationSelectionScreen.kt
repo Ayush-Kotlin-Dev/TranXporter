@@ -95,20 +95,18 @@ data class LocationScreenState(
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
-class  LocationSelectionScreen: Screen{
+class LocationSelectionScreen: Screen{
     @Composable
     override fun Content() {
         val viewModel = koinViewModel<LocationSelectionViewModel>()
         val navigator = LocalNavigator.currentOrThrow
         val context = LocalContext.current
-        var state by remember {
-            mutableStateOf(
-                LocationScreenState(
-                    hasLocationPermission = PermissionUtils.checkLocationPermission(context)
-                )
-            )
-        }
+        
+         val initialState = LocationScreenState(
+            hasLocationPermission = PermissionUtils.checkLocationPermission(context)
+        )
 
+        var state by remember { mutableStateOf(initialState) }
         val locationPermissionLauncher = rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
         ) { isGranted ->
@@ -148,67 +146,55 @@ class  LocationSelectionScreen: Screen{
             )
         }
 
-        LaunchedEffect(Unit) {
-            val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
-            try {
-                val permissionCheck = context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-                if (permissionCheck == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        LaunchedEffect(state.hasLocationPermission, Unit) {
+            if (state.hasLocationPermission) {
+                val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+                try {
                     val location = fusedLocationClient.lastLocation.await()
                     location?.let {
                         val latLng = LatLng(it.latitude, it.longitude)
                         val address = getAddressFromLocation(context, latLng)
                         state = state.copy(
                             currentLocation = latLng,
-                            currentAddress = address
+                            currentAddress = address,
+                            hasInitializedLocation = true
                         )
+                        if (viewModel.pickupLocation == null) {
+                            viewModel.setPickupLocation(latLng, address)
+                        }
                     }
-                }
-            } catch (e: Exception) {
-                Log.e("Location", "Error getting location", e)
-                state = state.copy(currentAddress = "Unable to get location")
-            }
-        }
-
-        LaunchedEffect(state.hasLocationPermission) {
-            if (state.hasLocationPermission && !state.hasInitializedLocation && viewModel.pickupLocation == null) {
-                PermissionUtils.getCurrentLocation(context)?.let { location ->
-                    val address = getAddressFromLocation(context, location)
-                    viewModel.updateCurrentLocation(location, address)
-                    state = state.copy(
-                        currentLocation = location,
-                        currentAddress = PermissionUtils.getAddressFromLocation(context, location),
-                        hasInitializedLocation = true
-                    )
-                    if (viewModel.pickupLocation == null) {
-                        viewModel.setPickupLocation(location, state.currentAddress)
-                    }
-                } ?: run {
+                } catch (e: Exception) {
+                    Log.e("Location", "Error getting location", e)
                     state = state.copy(currentAddress = "Unable to get location")
                 }
             }
         }
 
         val scope = rememberCoroutineScope()
-        LaunchedEffect(state.searchQuery, state.pickupSearchQuery) {
-            if ((state.activeTextField == TextFieldType.PICKUP && state.pickupSearchQuery.length >= 2) ||
-                (state.activeTextField == TextFieldType.DROP && state.searchQuery.length >= 2)) {
+        LaunchedEffect(state.searchQuery, state.pickupSearchQuery, state.activeTextField) {
+            val queryToUse = when (state.activeTextField) {
+                TextFieldType.PICKUP -> state.pickupSearchQuery
+                TextFieldType.DROP -> state.searchQuery
+                TextFieldType.NONE -> return@LaunchedEffect
+            }
+            
+            if (queryToUse.length >= 2) {
                 state = state.copy(isSearching = true)
-                val queryToUse = if (state.activeTextField == TextFieldType.PICKUP) state.pickupSearchQuery else state.searchQuery
-                val results = searchPlaces(queryToUse, context, scope) {
+                searchPlaces(queryToUse, context, scope) {
                     state = state.copy(predictions = it, isSearching = false)
                 }
+            } else {
+                state = state.copy(predictions = emptyList(), isSearching = false)
             }
         }
 
         val keyboardController = LocalSoftwareKeyboardController.current
 
         LaunchedEffect(state.activeTextField) {
-            when (state.activeTextField) {
-                TextFieldType.PICKUP, TextFieldType.DROP -> {
-                    keyboardController?.show()
-                }
-                TextFieldType.NONE -> {
-                    keyboardController?.hide()
+            keyboardController?.let { keyboard ->
+                when (state.activeTextField) {
+                    TextFieldType.PICKUP, TextFieldType.DROP -> keyboard.show()
+                    TextFieldType.NONE -> keyboard.hide()
                 }
             }
         }
@@ -265,19 +251,26 @@ class  LocationSelectionScreen: Screen{
                         val pickupInteractionSource = remember { MutableInteractionSource() }
 
                         TextField(
-                            value = if (state.isPickupFieldActive) state.pickupSearchQuery else viewModel.pickupLocation?.address ?: state.currentAddress,
-                            onValueChange = {
-                                state = state.copy(pickupSearchQuery = it)
-                                state = state.copy(activeTextField = TextFieldType.PICKUP)
+                            value = when {
+                                state.activeTextField == TextFieldType.PICKUP -> state.pickupSearchQuery
+                                viewModel.pickupLocation != null -> viewModel.pickupLocation?.address ?: ""
+                                else -> state.currentAddress
+                            },
+                            onValueChange = { 
+                                state = state.copy(
+                                    pickupSearchQuery = it,
+                                    activeTextField = TextFieldType.PICKUP
+                                )
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp)
                                 .onFocusChanged { focusState ->
                                     if (focusState.isFocused) {
-                                        state = state.copy(isPickupFieldActive = true)
-                                        state = state.copy(pickupSearchQuery = "")
-                                        state = state.copy(activeTextField = TextFieldType.PICKUP)
+                                        state = state.copy(
+                                            activeTextField = TextFieldType.PICKUP,
+                                            pickupSearchQuery = "" // Clear the search query when focused
+                                        )
                                     }
                                 },
                             placeholder = {
@@ -324,17 +317,28 @@ class  LocationSelectionScreen: Screen{
                         )
 
                         TextField(
-                            value = if (state.activeTextField == TextFieldType.DROP)
-                                state.searchQuery
-                            else
-                                viewModel.dropLocation?.address ?: "",
-                            onValueChange = {
-                                state = state.copy(searchQuery = it)
-                                state = state.copy(activeTextField = TextFieldType.DROP)
+                            value = when {
+                                state.activeTextField == TextFieldType.DROP -> state.searchQuery
+                                viewModel.dropLocation != null -> viewModel.dropLocation?.address ?: ""
+                                else -> ""
+                            },
+                            onValueChange = { 
+                                state = state.copy(
+                                    searchQuery = it,
+                                    activeTextField = TextFieldType.DROP
+                                )
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(56.dp),
+                                .height(56.dp)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        state = state.copy(
+                                            activeTextField = TextFieldType.DROP,
+                                            searchQuery = ""
+                                        )
+                                    }
+                                },
                             placeholder = {
                                 Text(
                                     "Where to?",
@@ -346,7 +350,10 @@ class  LocationSelectionScreen: Screen{
                                 Box(
                                     modifier = Modifier
                                         .size(40.dp)
-                                        .padding(8.dp),
+                                        .background(
+                                            color = Color(0xFFE53935).copy(alpha = 0.1f),
+                                            shape = CircleShape
+                                        ),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -396,7 +403,8 @@ class  LocationSelectionScreen: Screen{
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(24.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+                    enabled = viewModel.pickupLocation != null
                 ) {
                     Icon(
                         Icons.Default.Place,
@@ -418,10 +426,6 @@ class  LocationSelectionScreen: Screen{
                                 val latLng = LatLng(prediction.latitude, prediction.longitude)
                                 if (state.activeTextField == TextFieldType.PICKUP) {
                                     viewModel.setPickupLocation(latLng, prediction.mainText)
-                                    state = state.copy(
-                                        isPickupFieldActive = false,
-                                        pickupSearchQuery = ""
-                                    )
                                 } else {
                                     viewModel.setDropLocation(latLng, prediction.mainText)
                                     if (viewModel.pickupLocation != null) {
