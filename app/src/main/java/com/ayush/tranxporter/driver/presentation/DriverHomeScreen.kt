@@ -2,33 +2,46 @@ package com.ayush.tranxporter.driver.presentation
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.IntOffset
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Preview(name = "Light Theme", showBackground = true)
 @Preview(
@@ -41,10 +54,37 @@ fun DriverHomeScreenPreview() {
     DriverHomeScreen()
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class,
+    ExperimentalFoundationApi::class
+)
 @Composable
 fun DriverHomeScreen() {
     var isOnline by remember { mutableStateOf(true) }
+    var selectedOrder by remember { mutableStateOf<Order?>(null) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = {
+            coroutineScope.launch {
+                isRefreshing = true
+                delay(1500) // Simulate refresh
+                isRefreshing = false
+            }
+        }
+    )
+
+    val onlineTransition = updateTransition(isOnline, label = "onlineTransition")
+    val scale by onlineTransition.animateFloat(
+        label = "scale",
+        transitionSpec = { spring(stiffness = Spring.StiffnessLow) }
+    ) { if (it) 1.1f else 1f }
+
+    var expanded by remember { mutableStateOf(false) }
+    val rotationState by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f
+    )
 
     Scaffold(
         topBar = {
@@ -59,35 +99,76 @@ fun DriverHomeScreen() {
             )
         }
     ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                EarningsCard()
+        Box(Modifier.pullRefresh(pullRefreshState)) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    EarningsCard()
+                }
+                item {
+                    StatsRow()
+                }
+                item {
+                    Text(
+                        "Available Orders",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                itemsIndexed(
+                    items = sampleOrders,
+                    key = { _, order -> order.id }
+                ) { _, order ->
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = slideInVertically(
+                            initialOffsetY = { fullHeight -> fullHeight } // slide from bottom
+                        ) + fadeIn(
+                            initialAlpha = 0f
+                        ),
+                        modifier = Modifier.animateItemPlacement()
+                    ) {
+                        OrderCard(
+                            order = order,
+                            onOrderClick = { selectedOrder = order },
+                            expanded = expanded,
+                            onExpandedChange = { expanded = !expanded }
+                        )
+                    }
+                }
             }
-            item {
-                StatsRow()
-            }
-            item {
-                Text(
-                    "Available Orders",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            items(sampleOrders) { order ->
-                OrderCard(order)
-            }
+
+            PullRefreshIndicator(
+                state = pullRefreshState,
+                refreshing = isRefreshing,
+            )
         }
     }
 }
 
 @Composable
 private fun EarningsCard() {
+    val shimmerColors = listOf(
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+    )
+
+    val transition = rememberInfiniteTransition(label = "")
+    val translateAnim = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1000f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ), label = ""
+    )
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -97,11 +178,10 @@ private fun EarningsCard() {
         Box(
             modifier = Modifier
                 .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
-                            MaterialTheme.colorScheme.primary
-                        )
+                    Brush.horizontalGradient(
+                        colors = shimmerColors,
+                        startX = translateAnim.value - 1000f,
+                        endX = translateAnim.value
                     )
                 )
         ) {
@@ -120,7 +200,6 @@ private fun EarningsCard() {
                     color = Color.White
                 )
                 Spacer(modifier = Modifier.height(16.dp))
-                // Earnings trend card with glass effect
                 Card(
                     modifier = Modifier.align(Alignment.End),
                     colors = CardDefaults.cardColors(
@@ -253,9 +332,18 @@ private fun StatCard(
 }
 
 @Composable
-private fun OrderCard(order: Order) {
+private fun OrderCard(
+    order: Order,
+    onOrderClick: (Order) -> Unit,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(
+                onClick = { onExpandedChange(!expanded) }
+            ),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -307,7 +395,7 @@ private fun OrderCard(order: Order) {
                     )
                 }
                 OutlinedButton(
-                    onClick = { /* Show more details */ },
+                    onClick = { onOrderClick(order) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
@@ -317,6 +405,14 @@ private fun OrderCard(order: Order) {
                         modifier = Modifier.padding(vertical = 4.dp)
                     )
                 }
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                OrderDetails(order)
             }
         }
     }
@@ -422,9 +518,9 @@ private fun OnlineStatusToggle(
             .padding(horizontal = 16.dp),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isOnline) 
-                MaterialTheme.colorScheme.primaryContainer 
-            else 
+            containerColor = if (isOnline)
+                MaterialTheme.colorScheme.primaryContainer
+            else
                 MaterialTheme.colorScheme.errorContainer
         )
     ) {
@@ -455,12 +551,60 @@ private fun OnlineStatusToggle(
             Text(
                 text = if (isOnline) "Online" else "Offline",
                 style = MaterialTheme.typography.labelMedium,
-                color = if (isOnline) 
-                    MaterialTheme.colorScheme.onPrimaryContainer 
-                else 
+                color = if (isOnline)
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                else
                     MaterialTheme.colorScheme.onErrorContainer
             )
         }
+    }
+}
+
+@Composable
+private fun OrderDetails(order: Order) {
+    Column(
+        modifier = Modifier
+            .padding(16.dp)
+            .fillMaxWidth()
+    ) {
+        DetailRow("Vehicle Type", "Mini Truck")
+        DetailRow("Weight", "250 kg")
+        DetailRow("Time Estimate", "45 mins")
+        DetailRow("Payment Mode", "Online")
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            "Additional Notes",
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            "Fragile items, handle with care",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -469,8 +613,18 @@ data class Order(
     val pickup: String,
     val dropoff: String,
     val distance: Double,
-    val price: Int
+    val price: Int,
+    val vehicleType: String = "Mini Truck",
+    val weight: String = "250 kg",
+    val timeEstimate: String = "45 mins",
+    val paymentMode: String = "Online",
+    val additionalNotes: String = "Fragile items, handle with care",
+    val status: OrderStatus = OrderStatus.PENDING
 )
+
+enum class OrderStatus {
+    PENDING, ACCEPTED, IN_PROGRESS, COMPLETED, CANCELLED
+}
 
 private val sampleOrders = listOf(
     Order("1001", "Indiranagar", "Whitefield", 15.5, 450),
