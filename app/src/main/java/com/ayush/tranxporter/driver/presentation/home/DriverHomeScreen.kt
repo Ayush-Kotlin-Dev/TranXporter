@@ -1,16 +1,11 @@
-package com.ayush.tranxporter.driver.presentation
+package com.ayush.tranxporter.driver.presentation.home
 
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -39,12 +34,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -52,7 +46,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -70,10 +63,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -110,10 +101,11 @@ fun DriverHomeScreen() {
         transitionSpec = { spring(stiffness = Spring.StiffnessLow) }
     ) { if (it) 1.1f else 1f }
 
-    var expanded by remember { mutableStateOf(false) }
+    val expanded by remember { mutableStateOf(false) }
     val rotationState by animateFloatAsState(
         targetValue = if (expanded) 180f else 0f, label = ""
     )
+    var expandedOrderIds by remember { mutableStateOf(setOf<String>()) }
 
     Scaffold(
         topBar = {
@@ -178,13 +170,19 @@ fun DriverHomeScreen() {
                             ) + fadeIn(
                                 initialAlpha = 0f
                             ),
-                            modifier = Modifier.animateItemPlacement()
+                            modifier = Modifier.animateItem()
                         ) {
                             OrderCard(
                                 order = order,
                                 onOrderClick = { selectedOrder = order },
-                                expanded = expanded,
-                                onExpandedChange = { expanded = !expanded }
+                                expanded = expandedOrderIds.contains(order.id),
+                                onExpandedChange = { expanded ->
+                                    expandedOrderIds = if (expanded) {
+                                        expandedOrderIds + order.id
+                                    } else {
+                                        expandedOrderIds - order.id
+                                    }
+                                }
                             )
                         }
                     }
@@ -204,230 +202,103 @@ fun DriverHomeScreen() {
 }
 
 @Composable
-private fun EarningsCard(isRefreshing: Boolean = false) {
-    val shimmerColors = listOf(
-        MaterialTheme.colorScheme.primary,  
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),  
-        MaterialTheme.colorScheme.primary  
-    )
-
-    val transition = rememberInfiniteTransition(label = "")
-    val translateAnim = transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = LinearEasing),  
-            repeatMode = RepeatMode.Restart
-        ), label = ""
-    )
-
+private fun StatsRow() {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = 4.dp,
-                shape = RoundedCornerShape(16.dp),
-                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-            ),
-        shape = RoundedCornerShape(16.dp),
+            .padding(vertical = 8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primary
-        )
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+        ),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Box {
-            if (isRefreshing) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                "Quick Stats",
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Medium
+                ),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                QuickStatItem(
+                    value = "6.5",
+                    unit = "hrs",
+                    label = "Active Hours"
+                )
                 Box(
                     modifier = Modifier
-                        .matchParentSize()
+                        .width(1.dp)
+                        .height(40.dp)
                         .background(
-                            Brush.horizontalGradient(
-                                colors = shimmerColors,
-                                startX = translateAnim.value - 1000f,
-                                endX = translateAnim.value
-                            )
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                         )
-                        .alpha(0.7f)  
                 )
-            }
-
-            Column(
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            "Today's Earnings",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White.copy(alpha = 0.9f)
-                        )
-                        Text(
-                            "₹1,250",
-                            style = MaterialTheme.typography.displaySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                    }
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.White.copy(alpha = 0.15f)
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Text(
-                                "↑ 15%",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                "vs yesterday",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-                }
-
-                Divider(
-                    modifier = Modifier.padding(vertical = 20.dp),
-                    color = Color.White.copy(alpha = 0.2f)
+                QuickStatItem(
+                    value = "85",
+                    unit = "%",
+                    label = "Acceptance Rate"
                 )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    StatItem(
-                        icon = Icons.Default.Place,
-                        value = "5",
-                        label = "Trips",
-                        color = Color.White
-                    )
-                    StatItem(
-                        icon = Icons.Default.CheckCircle,
-                        value = "6",
-                        label = "Hours",
-                        color = Color.White
-                    )
-                    StatItem(
-                        icon = Icons.Default.KeyboardArrowDown,
-                        value = "120",
-                        label = "Km",
-                        color = Color.White
-                    )
-                }
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(40.dp)
+                        .background(
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+                        )
+                )
+                QuickStatItem(
+                    value = "4.8",
+                    unit = "★",
+                    label = "Rating"
+                )
             }
         }
     }
 }
 
 @Composable
-private fun StatItem(icon: ImageVector, value: String, label: String, color: Color) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            icon,
-            contentDescription = label,
-            tint = color,
-            modifier = Modifier.size(24.dp)
-        )
-        Text(
-            value,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Text(
-            label,
-            style = MaterialTheme.typography.bodySmall,
-            color = color
-        )
-    }
-}
-
-@Composable
-private fun StatsRow() {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        StatCard(
-            icon = Icons.Default.Star,
-            value = "4.8",
-            label = "Rating"
-        )
-        StatCard(
-            icon = Icons.Default.CheckCircle,
-            value = "85%",
-            label = "Acceptance"
-        )
-        StatCard(
-            icon = Icons.Default.Done,
-            value = "98%",
-            label = "Completion"
-        )
-    }
-}
-
-@Composable
-private fun StatCard(
-    icon: ImageVector,
+private fun QuickStatItem(
     value: String,
+    unit: String,
     label: String
 ) {
-    Card(
-        modifier = Modifier
-            .width(105.dp)
-            .shadow(4.dp, RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = RoundedCornerShape(12.dp)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 8.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        Row(
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = label,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                value,
+                text = value,
                 style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = unit,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                modifier = Modifier.padding(start = 2.dp, bottom = 2.dp)
             )
         }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 }
 
@@ -443,8 +314,12 @@ private fun OrderCard(
             .fillMaxWidth()
             .clickable(
                 onClick = { onExpandedChange(!expanded) }
+            )
+            .shadow(
+                elevation = 2.dp,
+                shape = RoundedCornerShape(16.dp),
+                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
             ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -453,32 +328,86 @@ private fun OrderCard(
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+            // Status and Order ID Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Order #${order.id}",
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Badge(
+                        containerColor = Color(0xFFE3F2FD),
+                        modifier = Modifier.shadow(
+                            elevation = 0.dp,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                    ) {
+                        Text(
+                            "Order #${order.id}",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            color = Color(0xFF1E88E5),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    OrderStatusBadge(order.status)
                 }
                 PriceTag(order.price)
             }
-            Spacer(modifier = Modifier.height(16.dp))
+
+            // Time and Distance Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                InfoChip(
+                    icon = Icons.Default.Place,
+                    text = "${order.distance} km",
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+                InfoChip(
+                    icon = Icons.Default.Close,
+                    text = order.timeEstimate,
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Location Info
             LocationInfo(
                 pickup = order.pickup,
                 dropoff = order.dropoff,
                 distance = order.distance
             )
-            Spacer(modifier = Modifier.height(16.dp))
+
+            // Package Info Row
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                InfoChip(
+                    icon = Icons.Default.LocationOn,
+                    text = order.vehicleType,
+                    contentColor = MaterialTheme.colorScheme.secondary
+                )
+                InfoChip(
+                    icon = Icons.Default.Place,
+                    text = order.weight,
+                    contentColor = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            // Action Buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Button(
@@ -489,10 +418,18 @@ private fun OrderCard(
                     ),
                     shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(
-                        "Accept",
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Accept")
+                    }
                 }
                 OutlinedButton(
                     onClick = { onOrderClick(order) },
@@ -500,13 +437,22 @@ private fun OrderCard(
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                 ) {
-                    Text(
-                        "Details",
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Details")
+                    }
                 }
             }
 
+            // Expandable Details
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically() + fadeIn(),
@@ -517,6 +463,82 @@ private fun OrderCard(
         }
     }
 }
+@Composable
+private fun OrderStatusBadge(status: OrderStatus) {
+    val (backgroundColor, textColor, statusText) = when(status) {
+        OrderStatus.PENDING -> Triple(
+            Color(0xFFFFF3E0),  // Light Orange
+            Color(0xFFE65100),  // Dark Orange
+            "New"
+        )
+        OrderStatus.ACCEPTED -> Triple(
+            Color(0xFFE3F2FD),  // Light Blue
+            Color(0xFF1565C0),  // Dark Blue
+            "Accepted"
+        )
+        OrderStatus.IN_PROGRESS -> Triple(
+            Color(0xFFE8F5E9),  // Light Green
+            Color(0xFF2E7D32),  // Dark Green
+            "In Progress"
+        )
+        OrderStatus.COMPLETED -> Triple(
+            Color(0xFFF3E5F5),  // Light Purple
+            Color(0xFF6A1B9A),  // Dark Purple
+            "Completed"
+        )
+        OrderStatus.CANCELLED -> Triple(
+            Color(0xFFFFEBEE),  // Light Red
+            Color(0xFFC62828),  // Dark Red
+            "Cancelled"
+        )
+    }
+
+    Badge(
+        containerColor = backgroundColor,
+        modifier = Modifier.shadow(
+            elevation = 0.dp,
+            shape = RoundedCornerShape(6.dp)
+        )
+    ) {
+        Text(
+            statusText,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            color = textColor,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+@Composable
+private fun InfoChip(
+    icon: ImageVector,
+    text: String,
+    contentColor: Color
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .background(
+                color = contentColor.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(6.dp)
+            )
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = contentColor,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            color = contentColor
+        )
+    }
+}
+
 
 @Composable
 private fun PriceTag(price: Int) {
