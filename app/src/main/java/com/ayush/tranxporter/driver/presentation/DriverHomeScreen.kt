@@ -1,15 +1,38 @@
 package com.ayush.tranxporter.driver.presentation
 
 import android.annotation.SuppressLint
-import android.content.res.Configuration
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
@@ -25,36 +48,42 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
-import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.IntOffset
+import com.ayush.tranxporter.utils.getGreeting
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-@Preview(name = "Light Theme", showBackground = true)
-@Preview(
-    name = "Dark Theme",
-    showBackground = true,
-    uiMode = Configuration.UI_MODE_NIGHT_YES
-)
-@Composable
-fun DriverHomeScreenPreview() {
-    DriverHomeScreen()
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class,
+@OptIn(
+    ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class,
     ExperimentalFoundationApi::class
 )
 @Composable
@@ -83,13 +112,23 @@ fun DriverHomeScreen() {
 
     var expanded by remember { mutableStateOf(false) }
     val rotationState by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f
+        targetValue = if (expanded) 180f else 0f, label = ""
     )
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Driver Dashboard") },
+                title = {
+                    Column {
+                        Text(getGreeting(), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Driver Dashboard",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        )
+                    }
+                },
                 actions = {
                     OnlineStatusToggle(
                         isOnline = isOnline,
@@ -99,64 +138,77 @@ fun DriverHomeScreen() {
             )
         }
     ) { paddingValues ->
-        Box(Modifier.pullRefresh(pullRefreshState)) {
-            LazyColumn(
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(paddingValues)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .pullRefresh(pullRefreshState)
             ) {
-                item {
-                    EarningsCard()
-                }
-                item {
-                    StatsRow()
-                }
-                item {
-                    Text(
-                        "Available Orders",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                itemsIndexed(
-                    items = sampleOrders,
-                    key = { _, order -> order.id }
-                ) { _, order ->
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = slideInVertically(
-                            initialOffsetY = { fullHeight -> fullHeight } // slide from bottom
-                        ) + fadeIn(
-                            initialAlpha = 0f
-                        ),
-                        modifier = Modifier.animateItemPlacement()
-                    ) {
-                        OrderCard(
-                            order = order,
-                            onOrderClick = { selectedOrder = order },
-                            expanded = expanded,
-                            onExpandedChange = { expanded = !expanded }
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item {
+                        EarningsCard(isRefreshing = isRefreshing)
+                    }
+                    item {
+                        StatsRow()
+                    }
+                    item {
+                        Text(
+                            "Available Orders",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
                         )
                     }
+                    itemsIndexed(
+                        items = sampleOrders,
+                        key = { _, order -> order.id }
+                    ) { _, order ->
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = slideInVertically(
+                                initialOffsetY = { fullHeight -> fullHeight }
+                            ) + fadeIn(
+                                initialAlpha = 0f
+                            ),
+                            modifier = Modifier.animateItemPlacement()
+                        ) {
+                            OrderCard(
+                                order = order,
+                                onOrderClick = { selectedOrder = order },
+                                expanded = expanded,
+                                onExpandedChange = { expanded = !expanded }
+                            )
+                        }
+                    }
                 }
-            }
 
-            PullRefreshIndicator(
-                state = pullRefreshState,
-                refreshing = isRefreshing,
-            )
+                PullRefreshIndicator(
+                    refreshing = isRefreshing,
+                    state = pullRefreshState,
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    scale = true,
+                    backgroundColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun EarningsCard() {
+private fun EarningsCard(isRefreshing: Boolean = false) {
     val shimmerColors = listOf(
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.9f),
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+        MaterialTheme.colorScheme.primary,  
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),  
+        MaterialTheme.colorScheme.primary  
     )
 
     val transition = rememberInfiniteTransition(label = "")
@@ -164,7 +216,7 @@ private fun EarningsCard() {
         initialValue = 0f,
         targetValue = 1000f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
+            animation = tween(800, easing = LinearEasing),  
             repeatMode = RepeatMode.Restart
         ), label = ""
     )
@@ -172,58 +224,106 @@ private fun EarningsCard() {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(16.dp)),
-        shape = RoundedCornerShape(16.dp)
+            .shadow(
+                elevation = 4.dp,
+                shape = RoundedCornerShape(16.dp),
+                spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+            ),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primary
+        )
     ) {
-        Box(
-            modifier = Modifier
-                .background(
-                    Brush.horizontalGradient(
-                        colors = shimmerColors,
-                        startX = translateAnim.value - 1000f,
-                        endX = translateAnim.value
-                    )
+        Box {
+            if (isRefreshing) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = shimmerColors,
+                                startX = translateAnim.value - 1000f,
+                                endX = translateAnim.value
+                            )
+                        )
+                        .alpha(0.7f)  
                 )
-        ) {
+            }
+
             Column(
-                modifier = Modifier.padding(20.dp)
+                modifier = Modifier.padding(24.dp)
             ) {
-                Text(
-                    "Today's Earnings",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Color.White
-                )
-                Text(
-                    "₹1,250",
-                    style = MaterialTheme.typography.headlineLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Card(
-                    modifier = Modifier.align(Alignment.End),
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color.White.copy(alpha = 0.15f)
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "↑ 15% vs yesterday",
-                        modifier = Modifier.padding(8.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White
-                    )
+                    Column {
+                        Text(
+                            "Today's Earnings",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White.copy(alpha = 0.9f)
+                        )
+                        Text(
+                            "₹1,250",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White.copy(alpha = 0.15f)
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "↑ 15%",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "vs yesterday",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
                 }
+
                 Divider(
-                    modifier = Modifier.padding(vertical = 16.dp),
+                    modifier = Modifier.padding(vertical = 20.dp),
                     color = Color.White.copy(alpha = 0.2f)
                 )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    StatItem(Icons.Default.Place, "5", "Trips", Color.White)
-                    StatItem(Icons.Default.CheckCircle, "6", "Hours", Color.White)
-                    StatItem(Icons.Default.KeyboardArrowDown, "120", "Km", Color.White)
+                    StatItem(
+                        icon = Icons.Default.Place,
+                        value = "5",
+                        label = "Trips",
+                        color = Color.White
+                    )
+                    StatItem(
+                        icon = Icons.Default.CheckCircle,
+                        value = "6",
+                        label = "Hours",
+                        color = Color.White
+                    )
+                    StatItem(
+                        icon = Icons.Default.KeyboardArrowDown,
+                        value = "120",
+                        label = "Km",
+                        color = Color.White
+                    )
                 }
             }
         }
@@ -515,24 +615,26 @@ private fun OnlineStatusToggle(
 ) {
     Card(
         modifier = Modifier
-            .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(24.dp),
+            .padding(end = 8.dp)  // Reduced horizontal padding
+            .height(40.dp),       // Fixed height for better alignment
+        shape = RoundedCornerShape(20.dp),  // Slightly reduced corner radius
         colors = CardDefaults.cardColors(
             containerColor = if (isOnline)
-                MaterialTheme.colorScheme.primaryContainer
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
             else
-                MaterialTheme.colorScheme.errorContainer
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.9f)
         )
     ) {
         Row(
             modifier = Modifier
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .fillMaxHeight()    // Fill card height
+                .padding(horizontal = 8.dp),  // Reduced padding
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)  // Reduced spacing
         ) {
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(6.dp)    // Slightly smaller indicator
                     .background(
                         color = if (isOnline) Color.Green else Color.Red,
                         shape = CircleShape
@@ -541,6 +643,7 @@ private fun OnlineStatusToggle(
             Switch(
                 checked = isOnline,
                 onCheckedChange = onStatusChange,
+                modifier = Modifier.scale(0.8f),
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.primary,
                     checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
@@ -550,7 +653,7 @@ private fun OnlineStatusToggle(
             )
             Text(
                 text = if (isOnline) "Online" else "Offline",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelSmall,  // Smaller text
                 color = if (isOnline)
                     MaterialTheme.colorScheme.onPrimaryContainer
                 else
