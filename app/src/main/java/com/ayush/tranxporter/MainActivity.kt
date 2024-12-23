@@ -39,6 +39,8 @@ import com.ayush.tranxporter.core.presentation.onboard.OnboardingScreen
 import com.ayush.tranxporter.driver.DriverScreen
 import com.ayush.tranxporter.ui.theme.TranXporterTheme
 import com.ayush.tranxporter.user.presentation.bookingdetails.BookingDetailsScreen
+import com.ayush.tranxporter.utils.LoadingDialog
+import com.ayush.tranxporter.utils.LoadingScreen
 import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.google.firebase.auth.FirebaseAuth
 import org.koin.androidx.compose.koinViewModel
@@ -53,7 +55,7 @@ class MainActivity : ComponentActivity() {
                 val appState by viewModel.appState.collectAsStateWithLifecycle()
 
                 when (appState) {
-                    AppState.Loading -> LoadingScreen()
+                    AppState.Loading -> LoadingDialog()
                     AppState.NeedsOnboarding -> {
                         Navigator(OnboardingScreen(viewModel::completeOnboarding))
                     }
@@ -153,12 +155,3 @@ class HomeScreen : Screen {
     }
 }
 
-@Composable
-fun LoadingScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        CircularProgressIndicator()
-    }
-}

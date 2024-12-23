@@ -56,6 +56,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,9 +70,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ayush.tranxporter.utils.LoadingScreen
 import com.ayush.tranxporter.utils.getGreeting
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.koin.compose.viewmodel.koinViewModel
+import kotlin.reflect.KFunction0
 
 @OptIn(
     ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class,
@@ -79,22 +83,31 @@ import kotlinx.coroutines.launch
 )
 @Composable
 fun DriverHomeScreen() {
-    var isOnline by remember { mutableStateOf(true) }
-    var selectedOrder by remember { mutableStateOf<Order?>(null) }
-    var isRefreshing by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+    val viewModel = koinViewModel<DriverHomeViewModel>()
+    val uiState by viewModel.uiState.collectAsState()
+    var selectedOrder by remember { mutableStateOf<Order?>(null) }
+    val isRefreshing = uiState.isRefreshing
+    val isOnline = uiState.isOnline
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
         onRefresh = {
-            coroutineScope.launch {
-                isRefreshing = true
-                delay(1500) // Simulate refresh
-                isRefreshing = false
-            }
+            viewModel.refresh()
         }
     )
-
+    // Show loading state if needed
+    if (uiState.isLoading) {
+        LoadingScreen()
+        return
+    }
+    // Show error if present
+    uiState.error?.let { error ->
+        ErrorSnackbar(
+            message = error,
+            onDismiss = viewModel::clearError
+        )
+    }
     val onlineTransition = updateTransition(isOnline, label = "onlineTransition")
     val scale by onlineTransition.animateFloat(
         label = "scale",
@@ -123,8 +136,8 @@ fun DriverHomeScreen() {
                 },
                 actions = {
                     OnlineStatusToggle(
-                        isOnline = isOnline,
-                        onStatusChange = { isOnline = it }
+                        isOnline = uiState.isOnline,
+                        onStatusChange = { viewModel.toggleOnlineStatus() }
                     )
                 }
             )
@@ -160,7 +173,7 @@ fun DriverHomeScreen() {
                         )
                     }
                     itemsIndexed(
-                        items = sampleOrders,
+                        items = uiState.orders,
                         key = { _, order -> order.id }
                     ) { _, order ->
                         AnimatedVisibility(
@@ -197,6 +210,37 @@ fun DriverHomeScreen() {
                     contentColor = MaterialTheme.colorScheme.primary
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun ErrorSnackbar(message: String, onDismiss: KFunction0<Unit>) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(16.dp)
+            .clickable { onDismiss() }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer
+            )
+            Icon(
+                imageVector = Icons.Default.Close,
+                contentDescription = "Dismiss",
+                tint = MaterialTheme.colorScheme.onErrorContainer
+            )
         }
     }
 }
@@ -733,26 +777,3 @@ private fun DetailRow(label: String, value: String) {
     }
 }
 
-data class Order(
-    val id: String,
-    val pickup: String,
-    val dropoff: String,
-    val distance: Double,
-    val price: Int,
-    val vehicleType: String = "Mini Truck",
-    val weight: String = "250 kg",
-    val timeEstimate: String = "45 mins",
-    val paymentMode: String = "Online",
-    val additionalNotes: String = "Fragile items, handle with care",
-    val status: OrderStatus = OrderStatus.PENDING
-)
-
-enum class OrderStatus {
-    PENDING, ACCEPTED, IN_PROGRESS, COMPLETED, CANCELLED
-}
-
-private val sampleOrders = listOf(
-    Order("1001", "Indiranagar", "Whitefield", 15.5, 450),
-    Order("1002", "Koramangala", "Electronic City", 12.0, 350),
-    Order("1003", "HSR Layout", "Airport", 25.0, 750)
-)
