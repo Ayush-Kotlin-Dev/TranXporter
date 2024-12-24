@@ -2,7 +2,12 @@ package com.ayush.tranxporter.driver.presentation.home
 
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -68,14 +73,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntSize
-import com.ayush.tranxporter.utils.LoadingScreen
+import androidx.compose.ui.unit.dp
 import com.ayush.tranxporter.utils.getGreeting
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(
@@ -214,9 +215,6 @@ fun DriverHomeScreen() {
             message = error,
             onDismiss = viewModel::clearError
         )
-    }
-    if (uiState.isLoading) {
-        // Empty content
     }
 }
 
@@ -790,7 +788,10 @@ private fun EarningsCardShimmer() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(24.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -818,7 +819,10 @@ private fun StatsRowShimmer() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(24.dp)
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -866,7 +870,10 @@ private fun OrderCardShimmer() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -945,25 +952,25 @@ fun Modifier.shimmerEffect(): Modifier = composed {
         targetValue = 2 * size.width.toFloat(),
         animationSpec = infiniteRepeatable(
             animation = tween(
-                durationMillis = 1000,
+                durationMillis = 1200,
                 easing = FastOutSlowInEasing
             ),
             repeatMode = RepeatMode.Restart
         ), label = ""
     )
 
-    background(
-        brush = Brush.linearGradient(
-            colors = listOf(
-                Color.White.copy(alpha = 0.2f),
-                Color.White.copy(alpha = 0.4f),
-                Color.White.copy(alpha = 0.2f),
-            ),
-            start = Offset(startOffsetX, 0f),
-            end = Offset(startOffsetX + size.width.toFloat(), size.height.toFloat())
+    background(Color(0xFFE0E0E0))
+        .background(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFFE0E0E0),
+                    Color(0xFFFFFFFF),
+                    Color(0xFFE0E0E0)
+                ),
+                start = Offset(startOffsetX, 0f),
+                end = Offset(startOffsetX + size.width.toFloat(), size.height.toFloat())
+            )
         )
-    )
-        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
         .onGloballyPositioned {
             size = it.size
         }
