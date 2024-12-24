@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Place
+
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -88,8 +89,8 @@ fun DriverHomeScreen() {
     val coroutineScope = rememberCoroutineScope()
     val viewModel = koinViewModel<DriverHomeViewModel>()
     val uiState by viewModel.uiState.collectAsState()
-    var selectedOrder by remember { mutableStateOf<Order?>(null) }
     val isRefreshing = uiState.isRefreshing
+    var selectedOrder by remember { mutableStateOf<Order?>(null) }
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
@@ -97,11 +98,13 @@ fun DriverHomeScreen() {
             viewModel.refresh()
         }
     )
-    var expandedOrderIds by remember { mutableStateOf(
-        setOf(
-            uiState.orders.firstOrNull()?.id ?: ""
+    var expandedOrderIds by remember {
+        mutableStateOf(
+            setOf(
+                uiState.orders.firstOrNull()?.id ?: ""
+            )
         )
-    ) }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -182,15 +185,12 @@ fun DriverHomeScreen() {
                             ) {
                                 OrderCard(
                                     order = order,
-                                    onOrderClick = { selectedOrder = order },
-                                    expanded = selectedOrder?.id == order.id,
+                                    onOrderClick = {
+                                        selectedOrder =
+                                            if (selectedOrder?.id == order.id) null else order
+                                    }, expanded = selectedOrder?.id == order.id,
                                     onExpandedChange = { expanded ->
-
-                                        expandedOrderIds = if (expanded) {
-                                            expandedOrderIds + order.id
-                                        } else {
-                                            expandedOrderIds - order.id
-                                        }
+                                        selectedOrder = if (expanded) order else null
                                     }
                                 )
                             }
@@ -343,7 +343,7 @@ private fun QuickStatItem(
         }
         Text(
             text = label,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             modifier = Modifier.padding(top = 4.dp)
         )
@@ -360,9 +360,6 @@ private fun OrderCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(
-                onClick = { onExpandedChange(!expanded) }
-            )
             .shadow(
                 elevation = 2.dp,
                 shape = RoundedCornerShape(16.dp),
@@ -374,9 +371,14 @@ private fun OrderCard(
         )
     ) {
         Column(
-            modifier = Modifier.padding(16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable {
+                    onOrderClick(order)
+                    onExpandedChange(!expanded)
+                }
+                .padding(16.dp)
         ) {
-            // Status and Order ID Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -406,7 +408,6 @@ private fun OrderCard(
                 PriceTag(order.price)
             }
 
-            // Time and Distance Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -425,14 +426,12 @@ private fun OrderCard(
                 )
             }
 
-            // Location Info
             LocationInfo(
                 pickup = order.pickup,
                 dropoff = order.dropoff,
                 distance = order.distance
             )
 
-            // Package Info Row
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -451,7 +450,6 @@ private fun OrderCard(
                 )
             }
 
-            // Action Buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -480,7 +478,10 @@ private fun OrderCard(
                     }
                 }
                 OutlinedButton(
-                    onClick = { onOrderClick(order) },
+                    onClick = {
+                        onOrderClick(order)
+                        onExpandedChange(!expanded)
+                    },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(8.dp),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
@@ -490,17 +491,16 @@ private fun OrderCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.Info,
-                            contentDescription = null,
+                            imageVector = if (expanded) Icons.Default.Close else Icons.Default.Info,
+                            contentDescription = if (expanded) "Hide Details" else "Show Details",
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Details")
+                        Text(if (expanded) "Hide" else "Details")
                     }
                 }
             }
 
-            // Expandable Details
             AnimatedVisibility(
                 visible = expanded,
                 enter = expandVertically() + fadeIn(),
@@ -514,27 +514,31 @@ private fun OrderCard(
 
 @Composable
 private fun OrderStatusBadge(status: OrderStatus) {
-    val (backgroundColor, textColor, statusText) = when(status) {
+    val (backgroundColor, textColor, statusText) = when (status) {
         OrderStatus.PENDING -> Triple(
             Color(0xFFFFF3E0),  // Light Orange
             Color(0xFFE65100),  // Dark Orange
             "New"
         )
+
         OrderStatus.ACCEPTED -> Triple(
             Color(0xFFE3F2FD),  // Light Blue
             Color(0xFF1565C0),  // Dark Blue
             "Accepted"
         )
+
         OrderStatus.IN_PROGRESS -> Triple(
             Color(0xFFE8F5E9),  // Light Green
             Color(0xFF2E7D32),  // Dark Green
             "In Progress"
         )
+
         OrderStatus.COMPLETED -> Triple(
             Color(0xFFF3E5F5),  // Light Purple
             Color(0xFF6A1B9A),  // Dark Purple
             "Completed"
         )
+
         OrderStatus.CANCELLED -> Triple(
             Color(0xFFFFEBEE),  // Light Red
             Color(0xFFC62828),  // Dark Red
@@ -833,7 +837,7 @@ private fun StatsRowShimmer() {
                     .height(24.dp)
                     .shimmerEffect()
             )
-            
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -895,9 +899,9 @@ private fun OrderCardShimmer() {
                         .shimmerEffect()
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Location info shimmer
             repeat(2) {
                 Row(
@@ -919,9 +923,9 @@ private fun OrderCardShimmer() {
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Action buttons shimmer
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -948,8 +952,8 @@ fun Modifier.shimmerEffect(): Modifier = composed {
     var size by remember { mutableStateOf(IntSize.Zero) }
     val transition = rememberInfiniteTransition()
     val startOffsetX by transition.animateFloat(
-        initialValue = -2 * size.width.toFloat(),
-        targetValue = 2 * size.width.toFloat(),
+        initialValue = -0.5f * size.width.toFloat(),
+        targetValue = 1.5f * size.width.toFloat(),
         animationSpec = infiniteRepeatable(
             animation = tween(
                 durationMillis = 1200,
