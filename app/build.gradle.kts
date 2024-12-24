@@ -116,5 +116,7 @@ dependencies {
     implementation(libs.bundles.koin)
 
     implementation("com.google.accompanist:accompanist-systemuicontroller:0.32.0")
+    implementation("androidx.compose.material:material-icons-extended:1.7.6")
+    
 
 }

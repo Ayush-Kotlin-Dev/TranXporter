@@ -54,7 +54,7 @@ data class OnboardingScreen(
 ) : Screen {
     @Composable
     override fun Content() {
-        Box(modifier = Modifier.fillMaxSize()) {  // Wrap in Box for better layout control
+        Box(modifier = Modifier.fillMaxSize()) {
             val pagerState = rememberPagerState(pageCount = { PAGE_COUNT })
 
             Column(
@@ -251,8 +251,8 @@ fun PermissionItemWithChip(
             leadingIcon = if (isGranted) {
                 {
                     Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
+                        Icons.Filled.Check,
+                        contentDescription = "Permission Granted",
                         tint = MaterialTheme.colorScheme.primary
                     )
                 }

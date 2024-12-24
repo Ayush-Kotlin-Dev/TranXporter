@@ -2,11 +2,7 @@ package com.ayush.tranxporter.driver.presentation.home
 
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.core.*
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -64,18 +60,23 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
 import com.ayush.tranxporter.utils.LoadingScreen
 import com.ayush.tranxporter.utils.getGreeting
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.reflect.KFunction0
 
 @OptIn(
     ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class,
@@ -88,7 +89,6 @@ fun DriverHomeScreen() {
     val uiState by viewModel.uiState.collectAsState()
     var selectedOrder by remember { mutableStateOf<Order?>(null) }
     val isRefreshing = uiState.isRefreshing
-    val isOnline = uiState.isOnline
 
     val pullRefreshState = rememberPullRefreshState(
         refreshing = isRefreshing,
@@ -96,30 +96,11 @@ fun DriverHomeScreen() {
             viewModel.refresh()
         }
     )
-    // Show loading state if needed
-    if (uiState.isLoading) {
-        LoadingScreen()
-        return
-    }
-    // Show error if present
-    uiState.error?.let { error ->
-        ErrorSnackbar(
-            message = error,
-            onDismiss = viewModel::clearError
+    var expandedOrderIds by remember { mutableStateOf(
+        setOf(
+            uiState.orders.firstOrNull()?.id ?: ""
         )
-    }
-    val onlineTransition = updateTransition(isOnline, label = "onlineTransition")
-    val scale by onlineTransition.animateFloat(
-        label = "scale",
-        transitionSpec = { spring(stiffness = Spring.StiffnessLow) }
-    ) { if (it) 1.1f else 1f }
-
-    val expanded by remember { mutableStateOf(false) }
-    val rotationState by animateFloatAsState(
-        targetValue = if (expanded) 180f else 0f, label = ""
-    )
-    var expandedOrderIds by remember { mutableStateOf(setOf<String>()) }
-
+    ) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -160,10 +141,18 @@ fun DriverHomeScreen() {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     item {
-                        EarningsCard(isRefreshing = isRefreshing)
+                        if (uiState.isLoading) {
+                            EarningsCardShimmer()
+                        } else {
+                            EarningsCard(isRefreshing = isRefreshing)
+                        }
                     }
                     item {
-                        StatsRow()
+                        if (uiState.isLoading) {
+                            StatsRowShimmer()
+                        } else {
+                            StatsRow()
+                        }
                     }
                     item {
                         Text(
@@ -172,31 +161,38 @@ fun DriverHomeScreen() {
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    itemsIndexed(
-                        items = uiState.orders,
-                        key = { _, order -> order.id }
-                    ) { _, order ->
-                        AnimatedVisibility(
-                            visible = true,
-                            enter = slideInVertically(
-                                initialOffsetY = { fullHeight -> fullHeight }
-                            ) + fadeIn(
-                                initialAlpha = 0f
-                            ),
-                            modifier = Modifier.animateItem()
-                        ) {
-                            OrderCard(
-                                order = order,
-                                onOrderClick = { selectedOrder = order },
-                                expanded = expandedOrderIds.contains(order.id),
-                                onExpandedChange = { expanded ->
-                                    expandedOrderIds = if (expanded) {
-                                        expandedOrderIds + order.id
-                                    } else {
-                                        expandedOrderIds - order.id
+                    if (uiState.isLoading) {
+                        items(3) {
+                            OrderCardShimmer()
+                        }
+                    } else {
+                        itemsIndexed(
+                            items = uiState.orders,
+                            key = { _, order -> order.id }
+                        ) { _, order ->
+                            AnimatedVisibility(
+                                visible = true,
+                                enter = slideInVertically(
+                                    initialOffsetY = { fullHeight -> fullHeight }
+                                ) + fadeIn(
+                                    initialAlpha = 0f
+                                ),
+                                modifier = Modifier.animateItem()
+                            ) {
+                                OrderCard(
+                                    order = order,
+                                    onOrderClick = { selectedOrder = order },
+                                    expanded = selectedOrder?.id == order.id,
+                                    onExpandedChange = { expanded ->
+
+                                        expandedOrderIds = if (expanded) {
+                                            expandedOrderIds + order.id
+                                        } else {
+                                            expandedOrderIds - order.id
+                                        }
                                     }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
@@ -212,10 +208,20 @@ fun DriverHomeScreen() {
             }
         }
     }
+    // Show error if present
+    uiState.error?.let { error ->
+        ErrorSnackbar(
+            message = error,
+            onDismiss = viewModel::clearError
+        )
+    }
+    if (uiState.isLoading) {
+        // Empty content
+    }
 }
 
 @Composable
-fun ErrorSnackbar(message: String, onDismiss: KFunction0<Unit>) {
+fun ErrorSnackbar(message: String, onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -507,6 +513,7 @@ private fun OrderCard(
         }
     }
 }
+
 @Composable
 private fun OrderStatusBadge(status: OrderStatus) {
     val (backgroundColor, textColor, statusText) = when(status) {
@@ -553,6 +560,7 @@ private fun OrderStatusBadge(status: OrderStatus) {
         )
     }
 }
+
 @Composable
 private fun InfoChip(
     icon: ImageVector,
@@ -582,7 +590,6 @@ private fun InfoChip(
         )
     }
 }
-
 
 @Composable
 private fun PriceTag(price: Int) {
@@ -777,3 +784,187 @@ private fun DetailRow(label: String, value: String) {
     }
 }
 
+@Composable
+private fun EarningsCardShimmer() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(120.dp)
+                    .height(24.dp)
+                    .shimmerEffect()
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .shimmerEffect()
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatsRowShimmer() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(100.dp)
+                    .height(24.dp)
+                    .shimmerEffect()
+            )
+            
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                repeat(3) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(60.dp)
+                                .height(32.dp)
+                                .shimmerEffect()
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(80.dp)
+                                .height(16.dp)
+                                .shimmerEffect()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OrderCardShimmer() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(120.dp)
+                        .height(24.dp)
+                        .shimmerEffect()
+                )
+                Box(
+                    modifier = Modifier
+                        .width(80.dp)
+                        .height(24.dp)
+                        .shimmerEffect()
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Location info shimmer
+            repeat(2) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(24.dp)
+                            .shimmerEffect()
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.7f)
+                            .height(20.dp)
+                            .shimmerEffect()
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            // Action buttons shimmer
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .shimmerEffect()
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .shimmerEffect()
+                )
+            }
+        }
+    }
+}
+
+fun Modifier.shimmerEffect(): Modifier = composed {
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    val transition = rememberInfiniteTransition()
+    val startOffsetX by transition.animateFloat(
+        initialValue = -2 * size.width.toFloat(),
+        targetValue = 2 * size.width.toFloat(),
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 1000,
+                easing = FastOutSlowInEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ), label = ""
+    )
+
+    background(
+        brush = Brush.linearGradient(
+            colors = listOf(
+                Color.White.copy(alpha = 0.2f),
+                Color.White.copy(alpha = 0.4f),
+                Color.White.copy(alpha = 0.2f),
+            ),
+            start = Offset(startOffsetX, 0f),
+            end = Offset(startOffsetX + size.width.toFloat(), size.height.toFloat())
+        )
+    )
+        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        .onGloballyPositioned {
+            size = it.size
+        }
+}

@@ -244,8 +244,8 @@ data class BookingScreen(
                                 modifier = Modifier.size(24.dp)
                             ) {
                                 Icon(
-                                    Icons.Default.Edit,
-                                    contentDescription = "Edit location",
+                                    Icons.Default.KeyboardArrowUp,
+                                    contentDescription = "Select location",
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -257,9 +257,10 @@ data class BookingScreen(
                             modifier = Modifier.padding(start = 8.dp)
                         ) {
                             Icon(
-                                Icons.Default.ArrowBack,
-                                contentDescription = "Back",
-                                modifier = Modifier.size(24.dp)
+                                imageVector = Icons.Filled.ArrowBack,
+                                contentDescription = "Navigate back",
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }

@@ -238,10 +238,10 @@ private fun VehicleOption(
                 ) {
                     Text(
                         text = vehicle,
-                        style = MaterialTheme.typography.bodyMedium,  // Reduced from bodyLarge
-                        fontWeight = FontWeight.SemiBold,  // Changed from Bold
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
-                        modifier = Modifier.weight(1f, fill = false)  // Take only needed space
+                        modifier = Modifier.weight(1f, fill = false)
                     )
                     if (isSelected) {
                         Spacer(modifier = Modifier.width(8.dp))

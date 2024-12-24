@@ -19,6 +19,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -82,7 +84,6 @@ fun EarningsCard(isRefreshing: Boolean = false) {
                         .alpha(0.7f)
                 )
             }
-
             Column(
                 modifier = Modifier.padding(24.dp)
             ) {
@@ -148,19 +149,19 @@ fun EarningsCard(isRefreshing: Boolean = false) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     StatItem(
-                        icon = Icons.Default.Place,
+                        icon = Icons.Default.CheckCircle,
                         value = "5",
                         label = "Trips",
                         color = Color.White
                     )
                     StatItem(
-                        icon = Icons.Default.CheckCircle,
+                        icon = Icons.Default.Timer,
                         value = "6",
                         label = "Hours",
                         color = Color.White
                     )
                     StatItem(
-                        icon = Icons.Default.KeyboardArrowDown,
+                        icon = Icons.Default.Speed,
                         value = "120",
                         label = "Km",
                         color = Color.White
