@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
 import java.time.LocalTime
+import kotlin.math.max
 import kotlin.math.round
 import kotlin.math.roundToInt
 
@@ -62,22 +63,59 @@ suspend fun getDrivingDistance(origin: LatLng, destination: LatLng): Double? {
 }
 
 object PriceMultipliers {
-    // Vehicle type multipliers
-    val VEHICLE_MULTIPLIERS = mapOf(
-        TruckType.PICKUP to 1.0,
-        TruckType.LORRY to 1.5,
-        TruckType.SIXTEEN_WHEELER to 2.0,
-        TruckType.TRACTOR to 1.8
+    // Base fare per vehicle type (in Rupees)
+    val BASE_FARE = mapOf(
+        TruckType.PICKUP to 300.0,      // Small loads, local delivery
+        TruckType.LORRY to 500.0,       // Medium loads, urban delivery
+        TruckType.SIXTEEN_WHEELER to 1000.0,  // Heavy loads, interstate
+        TruckType.TRACTOR to 800.0      // Rural, agricultural loads
     )
 
-    // Weight-based multipliers (per kg)
-    const val WEIGHT_FACTOR = 0.01  // 1 rupee per kg
+    // Per kilometer rates by vehicle type
+    val PER_KM_RATE = mapOf(
+        TruckType.PICKUP to 12.0,       // Economical for short distances
+        TruckType.LORRY to 18.0,        // Standard rate for medium trucks
+        TruckType.SIXTEEN_WHEELER to 25.0, // Higher rate for large trucks
+        TruckType.TRACTOR to 20.0       // Off-road capable rate
+    )
 
-    // Special handling surcharge
-    const val SPECIAL_HANDLING_MULTIPLIER = 1.2
+    // Weight tiers and their multipliers
+    val WEIGHT_TIERS = listOf(
+        WeightTier(0.0, 500.0, 1.0),      // Base rate up to 500 kg
+        WeightTier(500.0, 1000.0, 1.2),   // 20% extra for 500-1000 kg
+        WeightTier(1000.0, 5000.0, 1.5),  // 50% extra for 1-5 tons
+        WeightTier(5000.0, Double.MAX_VALUE, 2.0) // Double rate for 5+ tons
+    )
 
-    // Volume-based multiplier (based on dimensions)
-    const val VOLUME_FACTOR = 0.001  // 0.1 rupee per cubic cm
+    // Time-based multipliers
+    val TIME_MULTIPLIERS = mapOf(
+        TimeSlot.EARLY_MORNING to 1.1,  // 5 AM - 8 AM
+        TimeSlot.PEAK_MORNING to 1.3,   // 8 AM - 11 AM
+        TimeSlot.AFTERNOON to 1.0,      // 11 AM - 4 PM
+        TimeSlot.PEAK_EVENING to 1.3,   // 4 PM - 8 PM
+        TimeSlot.NIGHT to 1.2           // 8 PM - 5 AM
+    )
+
+    // Additional charges
+    const val LOADING_UNLOADING_CHARGE = 200.0  // Per service
+    const val SPECIAL_HANDLING_CHARGE = 500.0    // Fragile items
+    const val INSURANCE_PERCENTAGE = 0.01        // 1% of declared value
+    const val FUEL_SURCHARGE = 0.05             // 5% of base fare
+    const val GST_RATE = 0.18                   // 18% GST
+}
+
+data class WeightTier(
+    val min: Double,
+    val max: Double,
+    val multiplier: Double
+)
+
+enum class TimeSlot {
+    EARLY_MORNING,
+    PEAK_MORNING,
+    AFTERNOON,
+    PEAK_EVENING,
+    NIGHT
 }
 
 suspend fun calculateFare(
@@ -85,55 +123,96 @@ suspend fun calculateFare(
     end: LatLng,
     bookingDetails: TransportItemDetails,
     timeOfDay: LocalTime = LocalTime.now(),
-    baseFare: Double = 50.0
-): Double {
-    val distance = getDrivingDistance(start, end) ?: return baseFare
+    declaredValue: Double = 0.0
+): FareBreakdown {
+    val distance = getDrivingDistance(start, end) ?: throw IllegalStateException("Unable to calculate distance")
 
-    // Calculate volume from dimensions
-    val (length, width, height) = bookingDetails.dimensions
-        .split("x")
-        .map { it.trim().toDouble() }
-    val volume = length * width * height
+    // Get base fare and per km rate for vehicle type
+    val baseFare = PriceMultipliers.BASE_FARE[bookingDetails.truckType]
+        ?: throw IllegalArgumentException("Invalid vehicle type")
+    val perKmRate = PriceMultipliers.PER_KM_RATE[bookingDetails.truckType] ?: 15.0
 
-    // Base distance fare
-    val distanceFare = distance * 15.0  // Base per-km rate
+    // Calculate distance charge with minimum distance of 5 km
+    val effectiveDistance = max(distance, 5.0)
+    val distanceCharge = effectiveDistance * perKmRate
 
-    // Vehicle type multiplier
-    val vehicleMultiplier = PriceMultipliers.VEHICLE_MULTIPLIERS[bookingDetails.truckType] ?: 1.0
+    // Calculate weight multiplier
+    val weightMultiplier = PriceMultipliers.WEIGHT_TIERS
+        .find { bookingDetails.weight >= it.min && bookingDetails.weight < it.max }
+        ?.multiplier ?: 2.0
 
-    // Weight charge
-    val weightCharge = bookingDetails.weight * PriceMultipliers.WEIGHT_FACTOR
+    // Get time multiplier
+    val timeMultiplier = getTimeMultiplier(timeOfDay)
 
-    // Volume charge
-    val volumeCharge = volume * PriceMultipliers.VOLUME_FACTOR
+    // Calculate additional charges
+    val loadingUnloadingCharge = PriceMultipliers.LOADING_UNLOADING_CHARGE
 
-    // Special handling surcharge
-    val specialHandlingMultiplier = if (bookingDetails.specialHandling)
-        PriceMultipliers.SPECIAL_HANDLING_MULTIPLIER else 1.0
+    val specialHandlingCharge = if (bookingDetails.specialHandling)
+        PriceMultipliers.SPECIAL_HANDLING_CHARGE else 0.0
 
-    // Peak hour multiplier (keeping existing logic)
-    val peakMultiplier = if (timeOfDay.isAfter(LocalTime.of(17, 0)) &&
-        timeOfDay.isBefore(LocalTime.of(20, 0))) {
-        1.2
-    } else {
-        1.0
-    }
+    val insuranceCharge = declaredValue * PriceMultipliers.INSURANCE_PERCENTAGE
 
-    // Calculate total fare
-    val totalFare = (baseFare + distanceFare) * vehicleMultiplier +
-            weightCharge +
-            volumeCharge
+    // Calculate subtotal
+    val subtotal = (baseFare + distanceCharge) * weightMultiplier * timeMultiplier
 
-    // Apply special handling and peak hour multipliers
-    val finalFare = totalFare * specialHandlingMultiplier * peakMultiplier
+    // Add fuel surcharge
+    val fuelSurcharge = subtotal * PriceMultipliers.FUEL_SURCHARGE
 
-    return finalFare.roundTo(2)
+    // Calculate total before tax
+    val totalBeforeTax = subtotal +
+            loadingUnloadingCharge +
+            specialHandlingCharge +
+            insuranceCharge +
+            fuelSurcharge
+
+    // Calculate GST
+    val gst = totalBeforeTax * PriceMultipliers.GST_RATE
+
+    // Calculate final total
+    val finalTotal = totalBeforeTax + gst
+
+    return FareBreakdown(
+        baseFare = round(baseFare * 100) / 100,
+        distanceCharge = round(distanceCharge * 100) / 100,
+        weightMultiplier = weightMultiplier,
+        timeMultiplier = timeMultiplier,
+        loadingUnloadingCharge = loadingUnloadingCharge,
+        specialHandlingCharge = specialHandlingCharge,
+        insuranceCharge = round(insuranceCharge * 100) / 100,
+        fuelSurcharge = round(fuelSurcharge * 100) / 100,
+        subtotal = round(totalBeforeTax * 100) / 100,
+        gst = round(gst * 100) / 100,
+        finalTotal = round(finalTotal * 100) / 100,
+        distance = effectiveDistance
+    )
 }
 
-// Helper function to round doubles
-fun Double.roundTo(decimals: Int): Double {
-    var multiplier = 1.0
-    repeat(decimals) { multiplier *= 10 }
-    return round(this * multiplier) / multiplier
+private fun getTimeMultiplier(time: LocalTime): Double {
+    return when {
+        time.isInRange(5, 8) -> PriceMultipliers.TIME_MULTIPLIERS[TimeSlot.EARLY_MORNING]
+        time.isInRange(8, 11) -> PriceMultipliers.TIME_MULTIPLIERS[TimeSlot.PEAK_MORNING]
+        time.isInRange(11, 16) -> PriceMultipliers.TIME_MULTIPLIERS[TimeSlot.AFTERNOON]
+        time.isInRange(16, 20) -> PriceMultipliers.TIME_MULTIPLIERS[TimeSlot.PEAK_EVENING]
+        else -> PriceMultipliers.TIME_MULTIPLIERS[TimeSlot.NIGHT]
+    } ?: 1.0
 }
 
+private fun LocalTime.isInRange(startHour: Int, endHour: Int): Boolean {
+    return this.isAfter(LocalTime.of(startHour, 0)) &&
+            this.isBefore(LocalTime.of(endHour, 0))
+}
+
+data class FareBreakdown(
+    val baseFare: Double,
+    val distanceCharge: Double,
+    val weightMultiplier: Double,
+    val timeMultiplier: Double,
+    val loadingUnloadingCharge: Double,
+    val specialHandlingCharge: Double,
+    val insuranceCharge: Double,
+    val fuelSurcharge: Double,
+    val subtotal: Double,
+    val gst: Double,
+    val finalTotal: Double,
+    val distance: Double
+)

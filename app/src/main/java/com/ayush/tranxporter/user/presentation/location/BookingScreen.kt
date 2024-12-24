@@ -27,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Divider
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
@@ -775,8 +774,8 @@ private suspend fun updateRouteAndFares(
                 bookingDetails = bookingDetails.copy(truckType = TruckType.SIXTEEN_WHEELER)
             )
 
-            // 5. Update fare information
-            onFareUpdate(smallTruckFare, largeTruckFare)
+            // 5. Update fare information TODO  Update fare information ( show user all details like base fare , tax , special handling charges etc)
+            onFareUpdate(smallTruckFare.finalTotal, largeTruckFare.finalTotal)
 
             Log.d(TAG, "Route and fares updated successfully")
         } catch (e: Exception) {
@@ -816,7 +815,7 @@ private fun PermissionRequestScreen(
         Text(
             text = "We need location permission to show nearby locations and calculate routes.",
             style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.Center // Fixed TextAlign1 to TextAlign
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(24.dp))
         Button(
