@@ -64,7 +64,6 @@ data class UserDetailsScreen(
     @Composable
     override fun Content() {
 
-
         val viewModel = koinViewModel<UserDetailsViewModel>()
         val state by viewModel.state.collectAsState()
         val context = LocalContext.current

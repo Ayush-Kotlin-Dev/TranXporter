@@ -1,5 +1,6 @@
 package com.ayush.tranxporter
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,20 +14,27 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cafe.adriel.voyager.core.screen.Screen
@@ -34,6 +42,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import com.ayush.tranxporter.auth.presentation.login.AuthScreen
+import com.ayush.tranxporter.auth.presentation.service_selection.ServiceSelectionScreen
 import com.ayush.tranxporter.core.domain.model.AppState
 import com.ayush.tranxporter.core.presentation.onboard.OnboardingScreen
 import com.ayush.tranxporter.driver.DriverScreen
@@ -59,14 +68,13 @@ class MainActivity : ComponentActivity() {
                     AppState.NeedsOnboarding -> {
                         Navigator(OnboardingScreen(viewModel::completeOnboarding))
                     }
-
                     AppState.Ready -> {
                         Navigator(
-                             if (FirebaseAuth.getInstance().currentUser == null) {
+                            if (FirebaseAuth.getInstance().currentUser == null) {
                                 AuthScreen()
                             } else {
                                 HomeScreen()
-                             }
+                            }
                         )
                     }
                 }
@@ -80,16 +88,60 @@ class HomeScreen : Screen {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
-
+        val viewModel = koinViewModel<MainActivityViewModel>()
+        val needsProfileSetup by viewModel.needsProfileSetup.collectAsStateWithLifecycle()
         val systemUiController = rememberSystemUiController()
         val primaryContainer = MaterialTheme.colorScheme.primaryContainer
         val isDarkIcons = MaterialTheme.colorScheme.primary.luminance() > 0.5
         val navigator = LocalNavigator.currentOrThrow
+        val context = LocalContext.current
+
+        // Add state for dialog
+        var showDialog by remember { mutableStateOf(false) }
 
         SideEffect {
             systemUiController.setStatusBarColor(
                 color = primaryContainer,
                 darkIcons = isDarkIcons
+            )
+        }
+
+        LaunchedEffect(needsProfileSetup) {
+            if (needsProfileSetup) {
+                showDialog = true
+            }
+        }
+
+        // Profile Setup Dialog
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = {
+
+                },
+                title = { Text("Profile Setup Required") },
+                text = {
+                    Text("To continue using TranXporter, you need to complete your profile setup. Would you like to do it now?")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDialog = false
+                            navigator.replaceAll(ServiceSelectionScreen())
+                        }
+                    ) {
+                        Text("Setup Now")
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = {
+                            showDialog = false
+                            (context as? Activity)?.finish()
+                        }
+                    ) {
+                        Text("Exit")
+                    }
+                }
             )
         }
 

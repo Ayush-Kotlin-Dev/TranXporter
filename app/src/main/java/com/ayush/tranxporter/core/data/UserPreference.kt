@@ -28,7 +28,22 @@ class UserPreferences(private val context: Context) {
     suspend fun getInitialOnboardingState(): Boolean =
         context.dataStore.data.first()[PreferencesKeys.ONBOARDING_COMPLETED] ?: false
 
+    fun isProfileCompleted(): Flow<Boolean> = context.dataStore.data
+        .map { preferences ->
+            preferences[PreferencesKeys.PROFILE_COMPLETED] ?: false
+        }
+
+    suspend fun setProfileCompleted(completed: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.PROFILE_COMPLETED] = completed
+        }
+    }
+
+    suspend fun getInitialProfileState(): Boolean =
+        context.dataStore.data.first()[PreferencesKeys.PROFILE_COMPLETED] ?: false
+
     private object PreferencesKeys {
         val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
+        val PROFILE_COMPLETED = booleanPreferencesKey("profile_completed")
     }
 }

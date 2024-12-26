@@ -18,4 +18,17 @@ class UserRepository (
             Result.failure(e)
         }
     }
+
+//    suspend fun isUserProfileComplete(userId: String): Boolean {
+//        return try {
+//            val document = firestore.collection("users")
+//                .document(userId)
+//                .get()
+//                .await()
+//
+//            document.exists()
+//        } catch (e: Exception) {
+//            false
+//        }
+//    }
 }

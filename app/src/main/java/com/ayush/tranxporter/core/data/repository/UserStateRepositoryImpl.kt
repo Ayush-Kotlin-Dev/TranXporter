@@ -18,7 +18,21 @@ class UserStateRepositoryImpl(
         userPreferences.setOnboardingCompleted(completed)
     }
 
+
+    override fun isProfileCompleted(): Flow<Boolean> =
+        userPreferences.isProfileCompleted()
+
+    override suspend fun getInitialProfileState(): Boolean =
+        userPreferences.getInitialProfileState()
+
+    override suspend fun setProfileCompleted(completed: Boolean) {
+        userPreferences.setProfileCompleted(completed)
+    }
+
     override suspend fun logout() {
         // Will implement later with Firebase Auth
     }
+
+
+
 }

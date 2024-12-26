@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayush.tranxporter.auth.data.UserRepository
 import com.ayush.tranxporter.core.components.UserType
+import com.ayush.tranxporter.core.domain.repository.UserStateRepository
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,7 +13,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class UserDetailsViewModel(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val userStateRepository: UserStateRepository
+
 
 ) : ViewModel() {
     private val _state = MutableStateFlow(UserDetailsState())
@@ -159,6 +162,7 @@ class UserDetailsViewModel(
                                     isSuccess = true
                                 )
                             }
+                            userStateRepository.setProfileCompleted(true)
                         }
                         .onFailure { e ->
                             _state.update {
@@ -201,7 +205,6 @@ data class UserDetailsState(
     val isSuccess: Boolean = false,
     val completedFields: Int = 0
 ) {
-    // Add a function to calculate completed fields
     fun calculateCompletedFields(userType: UserType): Int {
         var completed = 0
         if (name.isNotBlank()) completed++
