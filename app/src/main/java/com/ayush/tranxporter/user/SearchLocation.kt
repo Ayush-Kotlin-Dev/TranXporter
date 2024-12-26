@@ -24,8 +24,6 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 
-// The PlacePrediction data class remains the same
-
 data class PlacePrediction(
     val placeId: String,
     val description: String,
@@ -46,7 +44,6 @@ data class PlaceDetails(
     val address: String
 )
 
-// These functions remain the same as in the original implementation
 suspend fun searchPlaces(
     query: String,
     context: Context,

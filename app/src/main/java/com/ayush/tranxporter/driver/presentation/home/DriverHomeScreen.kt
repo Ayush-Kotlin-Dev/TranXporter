@@ -335,9 +335,9 @@ private fun OnlineStatusToggle(
 ) {
     Card(
         modifier = Modifier
-            .padding(end = 8.dp)  // Reduced horizontal padding
-            .height(40.dp),       // Fixed height for better alignment
-        shape = RoundedCornerShape(20.dp),  // Slightly reduced corner radius
+            .padding(end = 8.dp)
+            .height(40.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isOnline)
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
@@ -373,7 +373,7 @@ private fun OnlineStatusToggle(
             )
             Text(
                 text = if (isOnline) "Online" else "Offline",
-                style = MaterialTheme.typography.labelSmall,  // Smaller text
+                style = MaterialTheme.typography.labelSmall,
                 color = if (isOnline)
                     MaterialTheme.colorScheme.onPrimaryContainer
                 else

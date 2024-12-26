@@ -3,7 +3,10 @@ package com.ayush.tranxporter.auth.presentation.login
 import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ayush.tranxporter.auth.domain.FirebaseAuthManager
+import com.ayush.tranxporter.auth.data.AuthResult
+import com.ayush.tranxporter.auth.domain.IsUserSignedInUseCase
+import com.ayush.tranxporter.auth.domain.LoginWithPhoneUseCase
+import com.ayush.tranxporter.auth.domain.VerifyOtpUseCase
 import com.google.firebase.auth.PhoneAuthCredential
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,15 +14,17 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class AuthViewModel(
-    private val authManager: FirebaseAuthManager
+    private val loginWithPhoneUseCase: LoginWithPhoneUseCase,
+    private val verifyOtpUseCase: VerifyOtpUseCase,
+    private val isUserSignedIn: IsUserSignedInUseCase
 ) : ViewModel() {
     private val _state = MutableStateFlow(AuthState())
     val state = _state.asStateFlow()
 
     init {
-        // Check if user is already signed in
-        if (authManager.isUserSignedIn()) {
-            _state.update { it.copy(isAuthenticated = true) }
+        viewModelScope.launch {
+            val isSignedIn = isUserSignedIn()
+            _state.update { it.copy(isAuthenticated = isSignedIn) }
         }
     }
 
@@ -36,45 +41,7 @@ class AuthViewModel(
                 }
             }
 
-            is AuthEvent.OnSubmitPhone -> {
-                if (state.value.isPhoneValid && activity != null) {
-                    viewModelScope.launch {
-                        _state.update { it.copy(isLoading = true) }
-                        try {
-                            authManager.sendVerificationCode(
-                                phoneNumber = "+91${state.value.phoneNumber}",
-                                activity = activity,
-                                onCodeSent = {
-                                    _state.update {
-                                        it.copy(
-                                            showOtpInput = true,
-                                            isLoading = false
-                                        )
-                                    }
-                                },
-                                onVerificationCompleted = { credential ->
-                                    handleCredential(credential)
-                                },
-                                onError = { error ->
-                                    _state.update {
-                                        it.copy(
-                                            error = error,
-                                            isLoading = false
-                                        )
-                                    }
-                                }
-                            )
-                        } catch (e: Exception) {
-                            _state.update {
-                                it.copy(
-                                    error = e.message ?: "Failed to send OTP",
-                                    isLoading = false
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            is AuthEvent.OnSubmitPhone -> handlePhoneSubmit(activity)
 
             is AuthEvent.OnOtpAction -> {
                 when (event.action) {
@@ -113,60 +80,39 @@ class AuthViewModel(
                 }
             }
 
-            is AuthEvent.OnVerifyOtp -> {
-                val otpCode = state.value.otpState.code.joinToString("")
-                if (otpCode.length == 6) {
-                    viewModelScope.launch {
-                        _state.update { it.copy(isLoading = true) }
-                        authManager.verifyCode(
-                            code = otpCode,
-                            onSuccess = {
-                                _state.update {
-                                    it.copy(
-                                        isAuthenticated = true,
-                                        isLoading = false
-                                    )
-                                }
-                            },
-                            onError = { error ->
-                                _state.update {
-                                    it.copy(
-                                        error = error,
-                                        isLoading = false
-                                    )
-                                }
-                            }
-                        )
-                    }
-                }
-            }
+            is AuthEvent.OnVerifyOtp -> handleOtpVerification()
 
             is AuthEvent.OnResendOtp -> {
                 activity?.let { act ->
                     _state.update { it.copy(isLoading = true) }
-                    authManager.sendVerificationCode(
-                        phoneNumber = "+91${state.value.phoneNumber}",
-                        activity = act,
-                        onCodeSent = {
-                            _state.update {
-                                it.copy(
-                                    isLoading = false,
-                                    otpState = OtpState(code = (1..6).map { null })
-                                )
-                            }
-                        },
-                        onVerificationCompleted = { credential ->
-                            handleCredential(credential)
-                        },
-                        onError = { error ->
-                            _state.update {
-                                it.copy(
-                                    error = error,
-                                    isLoading = false
-                                )
+                    viewModelScope.launch {
+                        loginWithPhoneUseCase(
+                            phoneNumber = "+91${state.value.phoneNumber}",
+                            activity = act
+                        ).collect { result ->
+                            when (result) {
+                                is AuthResult.CodeSent -> {
+                                    _state.update {
+                                        it.copy(
+                                            isLoading = false,
+                                            otpState = OtpState(code = (1..6).map { null })
+                                        )
+                                    }
+                                }
+                                is AuthResult.VerificationCompleted -> {
+                                    handleCredential(result.credential)
+                                }
+                                is AuthResult.Error -> {
+                                    _state.update {
+                                        it.copy(
+                                            error = result.message,
+                                            isLoading = false
+                                        )
+                                    }
+                                }
                             }
                         }
-                    )
+                    }
                 }
             }
 
@@ -185,6 +131,40 @@ class AuthViewModel(
         }
     }
 
+    private fun handlePhoneSubmit(activity: Activity?) {
+        if (!state.value.isPhoneValid || activity == null) return
+        
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+            
+            loginWithPhoneUseCase(
+                phoneNumber = "+91${state.value.phoneNumber}",
+                activity = activity
+            ).collect { result ->
+                when(result) {
+                    is AuthResult.CodeSent -> {
+                        _state.update { 
+                            it.copy(
+                                showOtpInput = true,
+                                isLoading = false
+                            )
+                        }
+                    }
+                    is AuthResult.VerificationCompleted -> {
+                        handleCredential(result.credential)
+                    }
+                    is AuthResult.Error -> {
+                        _state.update { 
+                            it.copy(
+                                error = result.message,
+                                isLoading = false
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     private fun handleCredential(credential: PhoneAuthCredential) {
         viewModelScope.launch {
@@ -202,25 +182,21 @@ class AuthViewModel(
                     }
                 }
 
-                authManager.verifyCode(
-                    code = credential.smsCode ?: "",
-                    onSuccess = {
-                        _state.update {
-                            it.copy(
-                                isAuthenticated = true,
-                                isLoading = false
-                            )
-                        }
-                    },
-                    onError = { error ->
-                        _state.update {
-                            it.copy(
-                                error = error,
-                                isLoading = false
-                            )
-                        }
+                verifyOtpUseCase(credential.smsCode ?: "").onSuccess {
+                    _state.update {
+                        it.copy(
+                            isAuthenticated = true,
+                            isLoading = false
+                        )
                     }
-                )
+                }.onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            error = error.message,
+                            isLoading = false
+                        )
+                    }
+                }
             } catch (e: Exception) {
                 _state.update {
                     it.copy(
@@ -228,6 +204,34 @@ class AuthViewModel(
                         isLoading = false
                     )
                 }
+            }
+        }
+    }
+
+    private fun handleOtpVerification() {
+        val otpCode = state.value.otpState.code.joinToString("")
+        if (otpCode.length == 6) {
+            viewModelScope.launch {
+                _state.update { it.copy(isLoading = true) }
+                
+                verifyOtpUseCase(otpCode)
+                    .onSuccess {
+                        _state.update {
+                            it.copy(
+                                isAuthenticated = true,
+                                isLoading = false
+                            )
+                        }
+                    }
+                    .onFailure { error ->
+                        _state.update {
+                            it.copy(
+                                error = error.message,
+                                isLoading = false,
+                                otpState = it.otpState.copy(isValid = false)
+                            )
+                        }
+                    }
             }
         }
     }
@@ -266,26 +270,24 @@ class AuthViewModel(
             viewModelScope.launch {
                 val otpCode = newCode.joinToString("")
                 _state.update { it.copy(isLoading = true) }
-                authManager.verifyCode(
-                    code = otpCode,
-                    onSuccess = {
+                verifyOtpUseCase(otpCode)
+                    .onSuccess {
                         _state.update {
                             it.copy(
                                 isAuthenticated = true,
                                 isLoading = false
                             )
                         }
-                    },
-                    onError = { error ->
+                    }
+                    .onFailure { error ->
                         _state.update {
                             it.copy(
-                                error = error,
+                                error = error.message,
                                 isLoading = false,
                                 otpState = it.otpState.copy(isValid = false)
                             )
                         }
                     }
-                )
             }
         }
     }
