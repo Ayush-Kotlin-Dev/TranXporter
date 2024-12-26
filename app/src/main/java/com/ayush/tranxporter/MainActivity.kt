@@ -83,9 +83,8 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-
-class HomeScreen : Screen {
-    @OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
+class HomeScreen() : Screen {
     @Composable
     override fun Content() {
         val viewModel = koinViewModel<MainActivityViewModel>()
@@ -115,9 +114,7 @@ class HomeScreen : Screen {
         // Profile Setup Dialog
         if (showDialog) {
             AlertDialog(
-                onDismissRequest = {
-
-                },
+                onDismissRequest = { /* Keep dialog non-dismissible */ },
                 title = { Text("Profile Setup Required") },
                 text = {
                     Text("To continue using TranXporter, you need to complete your profile setup. Would you like to do it now?")
@@ -127,6 +124,7 @@ class HomeScreen : Screen {
                         onClick = {
                             showDialog = false
                             navigator.replaceAll(ServiceSelectionScreen())
+                            viewModel.completeProfile()
                         }
                     ) {
                         Text("Setup Now")
@@ -206,4 +204,3 @@ class HomeScreen : Screen {
 
     }
 }
-

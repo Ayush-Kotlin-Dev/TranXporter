@@ -7,7 +7,9 @@ import com.ayush.tranxporter.auth.domain.IsUserSignedInUseCase
 import com.ayush.tranxporter.auth.domain.LoginWithPhoneUseCase
 import com.ayush.tranxporter.auth.domain.VerifyOtpUseCase
 import com.ayush.tranxporter.auth.presentation.login.AuthViewModel
+import com.ayush.tranxporter.auth.presentation.service_selection.UserDetailsViewModel
 import org.koin.core.module.dsl.viewModel
+import org.koin.core.module.dsl.viewModelOf
 import org.koin.dsl.module
 
 val authModule = module {
@@ -25,6 +27,12 @@ val authModule = module {
             loginWithPhoneUseCase = get(),
             verifyOtpUseCase = get(),
             isUserSignedIn = get()
+        )
+    }
+    viewModel{
+        UserDetailsViewModel(
+            userRepository = get(),
+            userStateRepository = get()
         )
     }
 }

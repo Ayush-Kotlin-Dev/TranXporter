@@ -13,6 +13,6 @@ val appModule = module {
     includes(coreModule)
     includes(userModule)
     includes(driverModule)
-    viewModel { MainActivityViewModel(get(), get()) }
+    viewModel { MainActivityViewModel(get()) }
 
 }
