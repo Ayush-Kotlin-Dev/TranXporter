@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import com.ayush.tranxporter.HomeScreen
 import com.ayush.tranxporter.auth.presentation.service_selection.ServiceSelectionScreen
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
@@ -101,13 +102,10 @@ class AuthScreen : Screen {
             }
         }
 
-        // Handle authentication success
-        LaunchedEffect(state.isAuthenticated) {
-            if (state.isAuthenticated) {
-                navigator.replaceAll(
-                    ServiceSelectionScreen()
-                )
-
+        LaunchedEffect(state.nextScreen) {
+            when (state.nextScreen) {
+                "Home" -> navigator.replaceAll(HomeScreen())
+                "Setup" -> navigator.replaceAll(ServiceSelectionScreen())
             }
         }
 

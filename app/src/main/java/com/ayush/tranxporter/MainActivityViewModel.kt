@@ -2,13 +2,10 @@ package com.ayush.tranxporter
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ayush.tranxporter.auth.data.UserRepository
 import com.ayush.tranxporter.core.domain.model.AppState
 import com.ayush.tranxporter.core.domain.repository.UserStateRepository
-import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 
@@ -39,6 +36,7 @@ class MainActivityViewModel(
     fun completeOnboarding() {
         viewModelScope.launch {
             userStateRepository.setOnboardingCompleted(true)
+            _appState.value = AppState.Ready 
         }
     }
 

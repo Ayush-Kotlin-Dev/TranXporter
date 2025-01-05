@@ -4,9 +4,11 @@ import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ayush.tranxporter.auth.data.AuthResult
+import com.ayush.tranxporter.auth.data.UserRepository
 import com.ayush.tranxporter.auth.domain.IsUserSignedInUseCase
 import com.ayush.tranxporter.auth.domain.LoginWithPhoneUseCase
 import com.ayush.tranxporter.auth.domain.VerifyOtpUseCase
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.PhoneAuthCredential
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -16,7 +18,8 @@ import kotlinx.coroutines.launch
 class AuthViewModel(
     private val loginWithPhoneUseCase: LoginWithPhoneUseCase,
     private val verifyOtpUseCase: VerifyOtpUseCase,
-    private val isUserSignedIn: IsUserSignedInUseCase
+    private val isUserSignedIn: IsUserSignedInUseCase,
+    private val userStateRepository: UserRepository
 ) : ViewModel() {
     private val _state = MutableStateFlow(AuthState())
     val state = _state.asStateFlow()
@@ -183,12 +186,7 @@ class AuthViewModel(
                 }
 
                 verifyOtpUseCase(credential.smsCode ?: "").onSuccess {
-                    _state.update {
-                        it.copy(
-                            isAuthenticated = true,
-                            isLoading = false
-                        )
-                    }
+                    handleLoginSuccess()
                 }.onFailure { error ->
                     _state.update {
                         it.copy(
@@ -214,24 +212,37 @@ class AuthViewModel(
             viewModelScope.launch {
                 _state.update { it.copy(isLoading = true) }
                 
-                verifyOtpUseCase(otpCode)
-                    .onSuccess {
-                        _state.update {
-                            it.copy(
-                                isAuthenticated = true,
-                                isLoading = false
-                            )
-                        }
+                verifyOtpUseCase(otpCode).onSuccess {
+                    handleLoginSuccess()
+                }.onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            error = error.message,
+                            isLoading = false,
+                            otpState = it.otpState.copy(isValid = false)
+                        )
                     }
-                    .onFailure { error ->
-                        _state.update {
-                            it.copy(
-                                error = error.message,
-                                isLoading = false,
-                                otpState = it.otpState.copy(isValid = false)
-                            )
-                        }
-                    }
+                }
+            }
+        }
+    }
+
+    private fun handleLoginSuccess() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+
+            val userId = FirebaseAuth.getInstance().currentUser?.uid
+            if (userId != null) {
+                val isCompleted = userStateRepository.isUserProfileComplete(userId).getOrDefault(false)
+                _state.update {
+                    it.copy(
+                        isAuthenticated = true,
+                        isLoading = false,
+                        nextScreen = if (isCompleted) "Home" else "Setup" // New field in AuthState
+                    )
+                }
+            } else {
+                _state.update { it.copy(isLoading = false, error = "User ID is null") }
             }
         }
     }
@@ -272,12 +283,7 @@ class AuthViewModel(
                 _state.update { it.copy(isLoading = true) }
                 verifyOtpUseCase(otpCode)
                     .onSuccess {
-                        _state.update {
-                            it.copy(
-                                isAuthenticated = true,
-                                isLoading = false
-                            )
-                        }
+                        handleLoginSuccess()
                     }
                     .onFailure { error ->
                         _state.update {
@@ -328,5 +334,5 @@ class AuthViewModel(
         }
         return currentFocusedIndex
     }
-
 }
+

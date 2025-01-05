@@ -12,4 +12,5 @@ data class AuthState(
         isValid = null
     ),
     val isAuthenticated: Boolean = false,
+    val nextScreen: String? = null
 )

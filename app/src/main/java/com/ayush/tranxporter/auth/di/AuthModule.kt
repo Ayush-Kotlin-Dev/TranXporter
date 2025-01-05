@@ -26,7 +26,8 @@ val authModule = module {
         AuthViewModel(
             loginWithPhoneUseCase = get(),
             verifyOtpUseCase = get(),
-            isUserSignedIn = get()
+            isUserSignedIn = get(),
+            userStateRepository = get()
         )
     }
     viewModel{

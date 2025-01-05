@@ -24,7 +24,6 @@ class UserDetailsViewModel(
     private val auth = FirebaseAuth.getInstance()
     private var userType: UserType = UserType.CONSUMER
 
-
     fun updateName(name: String) {
         _state.update {
             it.copy(
